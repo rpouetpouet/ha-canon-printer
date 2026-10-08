@@ -27,7 +27,13 @@
           "auth_key": "Clé d'authentification",
           "priv_protocol": "Protocole de confidentialité",
           "priv_key": "Clé de confidentialité",
-          "update_interval": "Intervalle de mise à jour (secondes)"
+          "update_interval": "Intervalle de mise à jour (secondes)",
+          "rui_enabled": "Activer l'enrichissement par l'IU distante",
+          "rui_password": "Mot de passe de l'IU distante",
+          "rui_admin": "Mode administrateur de l'IU distante",
+          "rui_system_manager_id": "Identifiant System Manager",
+          "yield_black": "Rendement de la cartouche noire (pages)",
+          "yield_color": "Rendement d'une cartouche couleur (pages)"
         }
       },
       "scan": {
@@ -73,7 +79,16 @@
           "priv_protocol": "Protocole de confidentialité",
           "priv_key": "Clé de confidentialité",
           "update_interval": "Intervalle de mise à jour (secondes)",
-          "name_source": "Source du nom de l'appareil"
+          "name_source": "Source du nom de l'appareil",
+          "rui_enabled": "Activer l'enrichissement par l'IU distante",
+          "rui_password": "Mot de passe de l'IU distante",
+          "rui_admin": "Mode administrateur de l'IU distante",
+          "rui_system_manager_id": "Identifiant System Manager",
+          "yield_black": "Rendement de la cartouche noire (pages)",
+          "yield_color": "Rendement d'une cartouche couleur (pages)",
+          "snmp_version": "Version SNMP",
+          "host": "Adresse IP",
+          "port": "Port"
         }
       }
     },
@@ -86,36 +101,41 @@
       "status": {
         "name": "État",
         "state": {
-          "idle": "Inactif",
-          "printing": "Impression",
+          "idle": "Prêt",
+          "printing": "Impression en cours",
           "warming_up": "Préchauffage",
-          "offline": "Hors ligne (données mises en cache)",
-          "unknown": "Inconnu"
+          "offline": "Hors ligne (données en cache)",
+          "unknown": "Inconnu",
+          "other": "Autre",
+          "online": "En ligne",
+          "warning": "Avertissement",
+          "testing": "Test en cours",
+          "down": "Arrêté"
         }
       },
       "page_count": {
-        "name": "Compteur de pages"
+        "name": "Pages imprimées"
       },
       "cover_status": {
-        "name": "État du capot"
+        "name": "Capot"
       },
       "errors": {
-        "name": "Erreurs"
+        "name": "Erreurs (SNMP)"
       },
       "display": {
-        "name": "Affichage"
+        "name": "Afficheur"
       },
       "black": {
-        "name": "Noir"
+        "name": "Toner noir"
       },
       "cyan": {
-        "name": "Cyan"
+        "name": "Toner cyan"
       },
       "magenta": {
-        "name": "Magenta"
+        "name": "Toner magenta"
       },
       "yellow": {
-        "name": "Jaune"
+        "name": "Toner jaune"
       },
       "light_cyan": {
         "name": "Cyan clair"
@@ -140,6 +160,29 @@
       },
       "tray_4": {
         "name": "Bac 4"
+      },
+      "rui_counters": {
+        "name": "Compteurs détaillés"
+      },
+      "rui_cartridge_log": {
+        "name": "Journal des cartouches"
+      },
+      "estimated_black": {
+        "name": "Toner noir (estimé)"
+      },
+      "estimated_cyan": {
+        "name": "Toner cyan (estimé)"
+      },
+      "estimated_magenta": {
+        "name": "Toner magenta (estimé)"
+      },
+      "estimated_yellow": {
+        "name": "Toner jaune (estimé)"
+      }
+    },
+    "binary_sensor": {
+      "cartridge_error": {
+        "name": "Erreur cartouche"
       }
     }
   },

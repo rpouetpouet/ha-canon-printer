@@ -21,6 +21,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .canon_rui import CanonRuiAuthError, CanonRuiClient, CanonRuiError
+from .identity import parse_model
 from .const import (
     CONF_NAME_SOURCE,
     CONF_RUI_ADMIN,
@@ -71,6 +72,27 @@ async def async_resolve_device_name(
     if name_source == NAME_SOURCE_DNS_HOSTNAME:
         return fqdn.split(".")[0]
     return fqdn
+
+
+def _async_maybe_fix_title(
+    hass: HomeAssistant, entry: ConfigEntry, info: dict[str, Any]
+) -> None:
+    """Remplace un titre d'entree auto-genere par le modele de l'imprimante.
+
+    Defaut historique : sans champ ``PID:`` dans ``sysDescr``, la localisation
+    SNMP servait de nom, ce qui donnait une entree « In the placard ». On ne
+    touche jamais a un titre choisi par l'utilisateur : seuls la localisation,
+    l'adresse IP ou un titre vide sont remplaces.
+    """
+    current = (entry.title or "").strip()
+    location = " ".join(str(info.get("location") or "").split())
+    host = entry.data.get(CONF_HOST, "")
+    if current not in (location, host, ""):
+        return
+    model = parse_model(info.get("description"), info.get("name"), info.get("location"))
+    if model and model != "Unknown Printer" and model != current:
+        _LOGGER.info("Titre de l'entree corrige : %s -> %s", current, model)
+        hass.config_entries.async_update_entry(entry, title=model)
 
 
 async def check_web_interface(host: str, hass: HomeAssistant) -> bool:
@@ -206,8 +228,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         "error": str(err),
                     }
 
+            info = {**system_info, **device_info}
+            _async_maybe_fix_title(hass, entry, info)
+
             data = {
-                "info": {**system_info, **device_info},
+                "info": info,
                 "status": device_info,
                 "device_name": await async_get_device_name(),
                 "cover_status": {"state": await snmp_client.get_cover_status()},

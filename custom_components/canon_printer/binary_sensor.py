@@ -27,6 +27,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import DOMAIN
+from .identity import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ class CanonCartridgeErrorBinarySensor(CoordinatorEntity, BinarySensorEntity):
         info = data.get("info", {}) or {}
         unique_id = info.get("serial_number") or entry.data[CONF_HOST]
         self._attr_unique_id = f"{unique_id}_rui_cartridge_error"
-        self._attr_name = "Erreur cartouche"
+        self._attr_translation_key = "cartridge_error"
 
     @property
     def available(self) -> bool:
@@ -102,23 +103,9 @@ class CanonCartridgeErrorBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Rattache le capteur au meme appareil que les capteurs SNMP."""
-        data = self.coordinator.data or {}
-        info = data.get("info", {}) or {}
-        unique_id = info.get("serial_number") or self._entry.data[CONF_HOST]
+        """Rattache le capteur au meme appareil que les capteurs SNMP.
 
-        description = info.get("description", "") or ""
-        location = info.get("location", "") or ""
-        model = location or "Canon printer"
-        if "PID:" in description:
-            model = description.split("PID:")[1].split(",")[0].split(";")[0].strip()
-
-        device_info = DeviceInfo(
-            identifiers={(DOMAIN, unique_id)},
-            name=data.get("device_name") or model,
-            manufacturer="Canon",
-            model=model,
-        )
-        if info.get("serial_number"):
-            device_info["serial_number"] = info["serial_number"]
-        return device_info
+        Passe par identity.py pour garantir un nom/modele strictement identique a
+        celui des capteurs SNMP (sinon HA cree un second appareil).
+        """
+        return build_device_info(self.coordinator.data, self._entry)

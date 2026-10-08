@@ -15,6 +15,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 import aiohttp
@@ -64,6 +65,18 @@ def _rows(html: str) -> list[list[str]]:
     return out
 
 
+def _parse_when(text: str | None) -> datetime | None:
+    """Convertit « 10/05 2026 15:01 » en datetime (None si non parsable)."""
+    m = re.match(r"\s*(\d{2})/(\d{2})\s+(\d{4})\s+(\d{2}):(\d{2})", text or "")
+    if not m:
+        return None
+    day, month, year, hour, minute = (int(part) for part in m.groups())
+    try:
+        return datetime(year, month, day, hour, minute)
+    except ValueError:
+        return None
+
+
 @dataclass
 class CartridgeRecord:
     """Une entree du journal de cartouche."""
@@ -105,6 +118,10 @@ class CanonRuiData:
     counters: dict[str, int] = field(default_factory=dict)
     cartridges: dict[str, list[CartridgeRecord]] = field(default_factory=dict)
     raw_error_page: str = ""
+    # Table de compteurs du journal : {"C2": {"units": 4, "pages": 819}, ...}.
+    # Le champ "pages" est le nombre de pages portees par le JEU DE CARTOUCHES
+    # de ce type (valide empiriquement : +3 pages imprimees -> +3).
+    cartridge_set_counters: dict[str, dict[str, int]] = field(default_factory=dict)
 
     @property
     def has_error(self) -> bool:
@@ -113,6 +130,42 @@ class CanonRuiData:
     @property
     def error_text(self) -> str:
         return " | ".join(self.errors)
+
+    @property
+    def _latest_cartridge(self) -> CartridgeRecord | None:
+        """Enregistrement de cartouche le plus recent (donc le jeu en place)."""
+        dated: list[tuple[datetime, CartridgeRecord]] = []
+        for records in self.cartridges.values():
+            for record in records:
+                when = _parse_when(record.first_used)
+                if when is not None:
+                    dated.append((when, record))
+        if not dated:
+            return None
+        return max(dated, key=lambda item: item[0])[1]
+
+    @property
+    def current_set_type(self) -> str | None:
+        """Type du jeu de cartouches en place (ex. « C1 », « C2 »)."""
+        latest = self._latest_cartridge
+        return latest.type if latest else None
+
+    @property
+    def current_set_install_date(self) -> str | None:
+        """Date de premiere utilisation du jeu en place."""
+        latest = self._latest_cartridge
+        return latest.first_used if latest else None
+
+    @property
+    def pages_with_current_set(self) -> int | None:
+        """Pages imprimees depuis le montage du jeu de cartouches en place."""
+        set_type = self.current_set_type
+        if not set_type:
+            return None
+        entry = self.cartridge_set_counters.get(set_type)
+        if not entry:
+            return None
+        return entry.get("pages")
 
     def as_dict(self) -> dict[str, Any]:
         """Version serialisable (le coordonnateur met les donnees en cache JSON)."""
@@ -126,6 +179,12 @@ class CanonRuiData:
                 color: [rec.as_dict() for rec in recs]
                 for color, recs in self.cartridges.items()
             },
+            "cartridge_set_counters": {
+                key: dict(value) for key, value in self.cartridge_set_counters.items()
+            },
+            "cartridge_set_type": self.current_set_type,
+            "cartridge_set_install_date": self.current_set_install_date,
+            "cartridge_set_pages": self.pages_with_current_set,
         }
 
 
@@ -210,38 +269,75 @@ class CanonRuiClient:
         data.last_update = self._parse_last_update(errors_html)
         counters_html = await self._get("/d_counter.html")
         data.counters = self._parse_counters(counters_html)
-        data.cartridges = await self._async_fetch_all_cartridge_logs()
+        data.cartridges, data.cartridge_set_counters = (
+            await self._async_fetch_all_cartridge_logs()
+        )
         return data
 
-    async def _async_fetch_all_cartridge_logs(self) -> dict[str, list[CartridgeRecord]]:
+    async def _async_fetch_all_cartridge_logs(
+        self,
+    ) -> tuple[dict[str, list[CartridgeRecord]], dict[str, dict[str, int]]]:
         """Le journal de cartouche affiche UNE couleur a la fois.
 
         La page contient un <select> (i2101) et un bouton 'Afficher' qui poste
         vers /cgi/cartridge_log.cgi avec un jeton iToken. On itere donc sur les
         couleurs disponibles.
+
+        Retourne aussi la table des compteurs de jeu de cartouches (« C2: ... »),
+        identique sur les quatre couleurs : elle seule donne le nombre de pages
+        portees par le jeu en place, indispensable a l'estimation du niveau.
         """
         html = await self._get("/cartridge_log.html")
         token = self._parse_token(html)
         options = self._parse_log_select(html)
         out: dict[str, list[CartridgeRecord]] = {}
+        set_counters = self._parse_set_counters(html)
         if not options:
             # pages multi-couleurs : on tente le parsing direct
-            return self._parse_cartridge_log(html)
+            return self._parse_cartridge_log(html), set_counters
         for value, label in options.items():
             if not token:
                 break
             page = await self._post(
                 "/cgi/cartridge_log.cgi", {"iToken": token, "i2101": value, "errText": "Erreur !"}
             )
+            if not set_counters:
+                set_counters = self._parse_set_counters(page)
             out[self._color_key(label)] = self._parse_cartridge_rows(page)
         if not out:
             out = self._parse_cartridge_log(html)
-        return out
+        return out, set_counters
 
     @staticmethod
     def _parse_token(html: str) -> str | None:
         m = re.search(r'name="iToken"\s+value="([^"]+)"', html)
         return m.group(1) if m else None
+
+    @staticmethod
+    def _parse_set_counters(html: str) -> dict[str, dict[str, int]]:
+        """Table de compteurs de jeu de cartouches du journal.
+
+        Structure observee (derniere table de la page) :
+        ``C2: | 00004 | 0000000819`` — le 2e champ est le nombre de pages
+        portees par le jeu de cartouches de ce type. Valide empiriquement sur
+        Canon MF660C : 3 pages imprimees -> 816 devient 819.
+        """
+        out: dict[str, dict[str, int]] = {}
+        for cells in _rows(html):
+            if len(cells) < 3:
+                continue
+            match = re.fullmatch(r"([A-Za-z]{1,3}\d{1,2})\s*:?", (cells[0] or "").strip())
+            if not match:
+                continue
+            values: list[int] = []
+            for raw in cells[1:3]:
+                if re.fullmatch(r"\d+", (raw or "").strip()):
+                    values.append(int(raw))
+                else:
+                    break
+            if len(values) == 2:
+                out[match.group(1).upper()] = {"units": values[0], "pages": values[1]}
+        return out
 
     @staticmethod
     def _parse_log_select(html: str) -> dict[str, str]:

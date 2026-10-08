@@ -33,6 +33,8 @@ from .const import (
     CONF_SNMP_VERSION,
     CONF_SUBNET,
     CONF_UPDATE_INTERVAL,
+    CONF_YIELD_BLACK,
+    CONF_YIELD_COLOR,
     DEFAULT_COMMUNITY,
     DEFAULT_NAME_SOURCE,
     DEFAULT_PORT,
@@ -41,6 +43,8 @@ from .const import (
     DEFAULT_RUI_SYSTEM_MANAGER_ID,
     DEFAULT_SNMP_VERSION,
     DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_YIELD_BLACK,
+    DEFAULT_YIELD_COLOR,
     DOMAIN,
     NAME_SOURCE_DNS_FQDN,
     NAME_SOURCE_DNS_HOSTNAME,
@@ -49,6 +53,7 @@ from .const import (
     SCAN_MAX_HOSTS,
     SCAN_TIMEOUT,
 )
+from .identity import parse_model
 from .snmp_client import SNMPClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -317,21 +322,13 @@ class SNMPPrinterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(unique_id)
                 self._abort_if_unique_id_configured()
 
-                # Extract model name from description for better title
-                description = system_info.get("description") or ""
-                location = system_info.get("location") or ""
-                name = system_info.get("name") or ""
-
-                # Try to get model name from description PID field
-                model_name = None
-                if description and "PID:" in description:
-                    parts = description.split("PID:")
-                    if len(parts) > 1:
-                        model_name = parts[1].split(",")[0].split(";")[0].strip()
-                elif location:
-                    model_name = location
-                elif name:
-                    model_name = name
+                # Titre de l'entree = modele reel (jamais la localisation SNMP,
+                # qui produisait des entrees nommees d'apres leur emplacement).
+                model_name = parse_model(
+                    system_info.get("description"),
+                    system_info.get("name"),
+                    system_info.get("location"),
+                )
 
                 # Create entry with printer model as title
                 title = model_name or user_input[CONF_HOST]
@@ -753,6 +750,27 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         ),
                     ),
                 ): str,
+                # --- Rendements de reference, pour l'estimation du niveau -----
+                # Utiles quand la puce des cartouches ne transmet aucun niveau :
+                # c'est le rendement annonce qui fixe le « 100 % ».
+                vol.Optional(
+                    CONF_YIELD_BLACK,
+                    default=self.config_entry.options.get(
+                        CONF_YIELD_BLACK,
+                        self.config_entry.data.get(
+                            CONF_YIELD_BLACK, DEFAULT_YIELD_BLACK
+                        ),
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=100, max=50000)),
+                vol.Optional(
+                    CONF_YIELD_COLOR,
+                    default=self.config_entry.options.get(
+                        CONF_YIELD_COLOR,
+                        self.config_entry.data.get(
+                            CONF_YIELD_COLOR, DEFAULT_YIELD_COLOR
+                        ),
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=100, max=50000)),
             }
         )
 

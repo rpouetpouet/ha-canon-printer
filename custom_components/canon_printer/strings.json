@@ -27,7 +27,13 @@
           "auth_key": "Authentication Key",
           "priv_protocol": "Privacy Protocol",
           "priv_key": "Privacy Key",
-          "update_interval": "Update Interval (seconds)"
+          "update_interval": "Update Interval (seconds)",
+          "rui_enabled": "Enable Remote UI enrichment",
+          "rui_password": "Remote UI password",
+          "rui_admin": "Remote UI admin mode",
+          "rui_system_manager_id": "System Manager ID",
+          "yield_black": "Black cartridge yield (pages)",
+          "yield_color": "Colour cartridge yield (pages)"
         }
       },
       "scan": {
@@ -73,7 +79,16 @@
           "priv_protocol": "Privacy Protocol",
           "priv_key": "Privacy Key",
           "update_interval": "Update Interval (seconds)",
-          "name_source": "Device name source"
+          "name_source": "Device name source",
+          "rui_enabled": "Enable Remote UI enrichment",
+          "rui_password": "Remote UI password",
+          "rui_admin": "Remote UI admin mode",
+          "rui_system_manager_id": "System Manager ID",
+          "yield_black": "Black cartridge yield (pages)",
+          "yield_color": "Colour cartridge yield (pages)",
+          "snmp_version": "SNMP version",
+          "host": "IP address",
+          "port": "Port"
         }
       }
     },
@@ -90,32 +105,37 @@
           "printing": "Printing",
           "warming_up": "Warming up",
           "offline": "Offline (cached data)",
-          "unknown": "Unknown"
+          "unknown": "Unknown",
+          "other": "Other",
+          "online": "Online",
+          "warning": "Warning",
+          "testing": "Testing",
+          "down": "Down"
         }
       },
       "page_count": {
-        "name": "Page count"
+        "name": "Pages printed"
       },
       "cover_status": {
         "name": "Cover status"
       },
       "errors": {
-        "name": "Errors"
+        "name": "Errors (SNMP)"
       },
       "display": {
         "name": "Display"
       },
       "black": {
-        "name": "Black"
+        "name": "Black toner"
       },
       "cyan": {
-        "name": "Cyan"
+        "name": "Cyan toner"
       },
       "magenta": {
-        "name": "Magenta"
+        "name": "Magenta toner"
       },
       "yellow": {
-        "name": "Yellow"
+        "name": "Yellow toner"
       },
       "light_cyan": {
         "name": "Light cyan"
@@ -140,6 +160,29 @@
       },
       "tray_4": {
         "name": "Tray 4"
+      },
+      "rui_counters": {
+        "name": "Detailed counters"
+      },
+      "rui_cartridge_log": {
+        "name": "Cartridge log"
+      },
+      "estimated_black": {
+        "name": "Black toner (estimated)"
+      },
+      "estimated_cyan": {
+        "name": "Cyan toner (estimated)"
+      },
+      "estimated_magenta": {
+        "name": "Magenta toner (estimated)"
+      },
+      "estimated_yellow": {
+        "name": "Yellow toner (estimated)"
+      }
+    },
+    "binary_sensor": {
+      "cartridge_error": {
+        "name": "Cartridge error"
       }
     }
   }

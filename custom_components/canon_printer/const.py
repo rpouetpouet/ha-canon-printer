@@ -15,6 +15,15 @@ DEFAULT_RUI_ENABLED: Final = False
 DEFAULT_RUI_ADMIN: Final = False
 DEFAULT_RUI_SYSTEM_MANAGER_ID: Final = ""
 
+# Rendements de reference des cartouches, en pages (ISO/IEC 19798, 5 % de
+# couverture). Servent a convertir les pages imprimees en pourcentage restant
+# lorsque la puce de la cartouche ne transmet aucun niveau (cf. estimation.py).
+# Valeurs par defaut = Canon Cartridge 075 haute capacite.
+CONF_YIELD_BLACK: Final = "yield_black"
+CONF_YIELD_COLOR: Final = "yield_color"
+DEFAULT_YIELD_BLACK: Final = 3500
+DEFAULT_YIELD_COLOR: Final = 2500
+
 # Configuration
 CONF_UPDATE_INTERVAL: Final = "update_interval"
 CONF_SNMP_VERSION: Final = "snmp_version"

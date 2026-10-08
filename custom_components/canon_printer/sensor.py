@@ -21,7 +21,15 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
 )
 
-from .const import DOMAIN
+from .const import (
+    CONF_YIELD_BLACK,
+    CONF_YIELD_COLOR,
+    DEFAULT_YIELD_BLACK,
+    DEFAULT_YIELD_COLOR,
+    DOMAIN,
+)
+from .estimation import TONER_COLORS, TonerEstimate, estimate_cartridges
+from .identity import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,6 +73,11 @@ async def async_setup_entry(
     if coordinator.data and coordinator.data.get("rui", {}).get("enabled"):
         entities.append(PrinterRuiCountersSensor(coordinator, entry))
         entities.append(PrinterRuiCartridgeLogSensor(coordinator, entry))
+        # Estimation du niveau : la puce d'une cartouche non d'origine ne
+        # transmet rien (SNMP -2, IPP -1, IU distante -%). On estime donc le
+        # reste a partir des compteurs de la machine (cf. estimation.py).
+        for color in TONER_COLORS:
+            entities.append(PrinterTonerEstimateSensor(coordinator, entry, color))
 
     async_add_entities(entities, True)
 
@@ -97,65 +110,13 @@ class PrinterSensorBase(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return device information."""
-        data = self.coordinator.data
-        info = data.get("info", {}) if data else {}
-        status = data.get("status", {}) if data else {}
+        """Informations de l'appareil (nom, modele, fabricant).
 
-        # Extract manufacturer and model from description
-        description = info.get("description", "")
-        location = info.get("location", "")
-
-        # Try to get model name from description PID field
-        model = "Unknown Printer"
-        if "PID:" in description:
-            parts = description.split("PID:")
-            if len(parts) > 1:
-                model = parts[1].split(",")[0].split(";")[0].strip()
-        elif location:
-            model = location
-
-        # Extract manufacturer
-        manufacturer = "Unknown"
-        if "HP" in description or "Hewlett-Packard" in description:
-            manufacturer = "HP"
-        elif "Canon" in description:
-            manufacturer = "Canon"
-        elif "Epson" in description:
-            manufacturer = "Epson"
-        elif "Brother" in description:
-            manufacturer = "Brother"
-        elif "Lexmark" in description:
-            manufacturer = "Lexmark"
-        elif "Samsung" in description:
-            manufacturer = "Samsung"
-        elif "Xerox" in description:
-            manufacturer = "Xerox"
-
-        # Use serial number or host as unique ID
-        unique_id = info.get("serial_number", self._entry.data[CONF_HOST])
-
-        # Prefer a DNS-based device name when configured (issue #19), otherwise
-        # fall back to the SNMP model name and finally the host address.
-        dns_name = data.get("device_name") if data else None
-        snmp_name = model if model != "Unknown Printer" else self._entry.data[CONF_HOST]
-        device_name = dns_name or snmp_name
-
-        device_info = DeviceInfo(
-            identifiers={(DOMAIN, unique_id)},
-            name=device_name,
-            manufacturer=manufacturer,
-            model=model,
-        )
-
-        # Add configuration URL if web interface is available
-        if data and data.get("web_interface_available"):
-            device_info["configuration_url"] = f"http://{self._entry.data[CONF_HOST]}"
-
-        if info.get("serial_number"):
-            device_info["serial_number"] = info["serial_number"]
-
-        return device_info
+        Delegue a identity.py : le nom ne doit JAMAIS etre deduit de la
+        localisation SNMP, sans quoi l'appareil porte le nom de son emplacement
+        et toutes ses entites en heritent le prefixe.
+        """
+        return build_device_info(self.coordinator.data, self._entry)
 
 
 class PrinterRuiCountersSensor(PrinterSensorBase):
@@ -180,8 +141,9 @@ class PrinterRuiCountersSensor(PrinterSensorBase):
             else entry.data[CONF_HOST]
         )
         self._attr_unique_id = f"{unique_id}_rui_counters"
-        self._attr_name = "Compteurs détaillés"
+        self._attr_translation_key = "rui_counters"
         self._attr_icon = "mdi:counter"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def _rui(self) -> dict[str, Any]:
@@ -234,8 +196,9 @@ class PrinterRuiCartridgeLogSensor(PrinterSensorBase):
             else entry.data[CONF_HOST]
         )
         self._attr_unique_id = f"{unique_id}_rui_cartridges"
-        self._attr_name = "Cartouches (journal)"
+        self._attr_translation_key = "rui_cartridge_log"
         self._attr_icon = "mdi:package-variant-closed"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def _rui(self) -> dict[str, Any]:
@@ -268,6 +231,74 @@ class PrinterRuiCartridgeLogSensor(PrinterSensorBase):
             "genuine_count": sum(1 for r in records if r.get("genuine")),
             "unidentified_count": sum(1 for r in records if not r.get("genuine")),
         }
+
+
+class PrinterTonerEstimateSensor(PrinterSensorBase):
+    """Niveau estime d'une cartouche dont la puce ne repond pas.
+
+    Le calcul (cf. ``estimation.py``) part du nombre de pages portees par le jeu
+    de cartouches en place — lu dans la table de compteurs du journal de l'IU
+    distante — et du rendement constructeur reglable dans les options. C'est une
+    ESTIMATION : elle n'a de sens que parce que la mesure directe est
+    impossible (SNMP ``-2``, IPP ``-1``, IU distante ``-%``).
+    """
+
+    def __init__(
+        self,
+        coordinator: DataUpdateCoordinator,
+        entry: ConfigEntry,
+        color: str,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, entry)
+        self._color = color
+        self._attr_translation_key = f"estimated_{color}"
+        unique_id = (
+            self.coordinator.data.get("info", {}).get(
+                "serial_number", entry.data[CONF_HOST]
+            )
+            if self.coordinator.data
+            else entry.data[CONF_HOST]
+        )
+        self._attr_unique_id = f"{unique_id}_estimated_{color}"
+        self._attr_native_unit_of_measurement = PERCENTAGE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:water-percent"
+
+    @property
+    def _estimate(self) -> TonerEstimate | None:
+        """Estimation courante (None tant que les donnees necessaires manquent)."""
+        rui = (self.coordinator.data or {}).get("rui") or {}
+        options = self._entry.options or {}
+        estimates = estimate_cartridges(
+            rui,
+            int(options.get(CONF_YIELD_BLACK, DEFAULT_YIELD_BLACK)),
+            int(options.get(CONF_YIELD_COLOR, DEFAULT_YIELD_COLOR)),
+        )
+        return estimates.get(self._color)
+
+    @property
+    def available(self) -> bool:
+        """Pas d'estimation inventee : indisponible si les donnees manquent."""
+        return super().available and self._estimate is not None
+
+    @property
+    def native_value(self) -> float | None:
+        """Pourcentage restant estime."""
+        estimate = self._estimate
+        return estimate.remaining_percent if estimate else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Detail du calcul, pour pouvoir le discuter chiffre en main."""
+        estimate = self._estimate
+        if estimate is None:
+            return {}
+        rui = (self.coordinator.data or {}).get("rui") or {}
+        attributes = estimate.as_attributes()
+        attributes["pages_with_current_set"] = rui.get("cartridge_set_pages")
+        attributes["source"] = "compteurs imprimante + journal de cartouche (IU distante)"
+        return attributes
 
 
 class PrinterStatusSensor(PrinterSensorBase):
@@ -369,6 +400,7 @@ class PrinterCoverStatusSensor(PrinterSensorBase):
         )
         self._attr_unique_id = f"{unique_id}_cover_status"
         self._attr_icon = "mdi:printer-3d-nozzle-alert"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def entity_registry_enabled_default(self) -> bool:
@@ -412,6 +444,7 @@ class PrinterPageCountSensor(PrinterSensorBase):
         self._attr_unique_id = f"{unique_id}_page_count"
         self._attr_icon = "mdi:counter"
         self._attr_native_unit_of_measurement = "pages"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self) -> int | None:
