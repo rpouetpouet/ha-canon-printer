@@ -53,6 +53,7 @@ from .const import (
     OID_SYSTEM_LOCATION,
     OID_SYSTEM_NAME,
     OID_SYSTEM_UPTIME,
+    DEVICE_STATUS,
     PRINTER_STATUS,
     SUPPLY_CLASS,
     SUPPLY_TYPE,
@@ -369,8 +370,17 @@ class SNMPClient:
         return await self._get_oid(OID_SYSTEM_DESCRIPTION)
 
     async def get_device_info(self) -> dict[str, Any]:
-        """Get device information."""
-        device_state = await self._get_oid(OID_PRINTER_STATUS)
+        """Get device information.
+
+        L'etat vient de ``hrDeviceStatus`` (RFC 2790) et non de
+        ``hrPrinterStatus`` : les Canon laissent ce dernier a « other » (1) en
+        permanence, ce qui produisait un capteur d'etat affichant « other »
+        quelle que soit la situation reelle. ``hrDeviceStatus`` vaut ici 3
+        (« warning ») quand l'imprimante est en erreur cartouche, 2 quand tout
+        va bien.
+        """
+        device_state = await self._get_oid(OID_DEVICE_STATE)
+        printer_state = await self._get_oid(OID_PRINTER_STATUS)
         serial = await self._get_oid(OID_SERIAL_NUMBER)
         mac = await self._get_oid(OID_HARDWARE_ADDRESS)
 
@@ -386,9 +396,12 @@ class SNMPClient:
         page_counts = await self.get_page_counts()
 
         return {
-            "state": PRINTER_STATUS.get(
+            "state": DEVICE_STATUS.get(
                 int(device_state) if device_state else 1, "unknown"
             ),
+            "device_status_raw": int(device_state) if device_state else None,
+            "printer_status_raw": int(printer_state) if printer_state else None,
+            "state_source": "hrDeviceStatus",
             "errors": await self._get_oid(OID_DEVICE_ERRORS),
             "serial_number": serial,
             "mac_address": mac,

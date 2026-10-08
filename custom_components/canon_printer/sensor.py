@@ -367,7 +367,18 @@ class PrinterStatusSensor(PrinterSensorBase):
             "location": info.get("location"),
             "serial_number": info.get("serial_number"),
             "description": info.get("description"),
+            "state_source": info.get("state_source"),
+            "device_status_raw": info.get("device_status_raw"),
+            "printer_status_raw": info.get("printer_status_raw"),
         }
+
+        # Statut affiche par l'imprimante elle-meme (IU distante), plus parlant
+        # que le code SNMP : « Imprimante : Une erreur s'est produite. »
+        rui_status = (self.coordinator.data.get("rui") or {}).get("device_status") or {}
+        if rui_status.get("printer"):
+            attributes["rui_printer_state"] = rui_status["printer"]
+        if rui_status.get("scanner"):
+            attributes["rui_scanner_state"] = rui_status["scanner"]
 
         # Add offline information if using cached data
         if not self.is_printer_online:

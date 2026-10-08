@@ -138,6 +138,9 @@ class CanonRuiData:
     # Le champ "pages" est le nombre de pages portees par le JEU DE CARTOUCHES
     # de ce type (valide empiriquement : +3 pages imprimees -> +3).
     cartridge_set_counters: dict[str, dict[str, int]] = field(default_factory=dict)
+    # Statut affiche par l'imprimante elle-meme (« Imprimante : ... »,
+    # « Scanner : ... ») — plus parlant qu'un code SNMP.
+    device_status: dict[str, str] = field(default_factory=dict)
 
     @property
     def has_error(self) -> bool:
@@ -198,6 +201,7 @@ class CanonRuiData:
             "cartridge_set_counters": {
                 key: dict(value) for key, value in self.cartridge_set_counters.items()
             },
+            "device_status": dict(self.device_status),
             "cartridge_set_type": self.current_set_type,
             "cartridge_set_install_date": self.current_set_install_date,
             "cartridge_set_pages": self.pages_with_current_set,
@@ -285,6 +289,8 @@ class CanonRuiClient:
         data.last_update = self._parse_last_update(errors_html)
         counters_html = await self._get("/d_counter.html")
         data.counters = self._parse_counters(counters_html)
+        portal_html = await self._get("/portal_top.html")
+        data.device_status = self._parse_device_status(portal_html)
         data.cartridges, data.cartridge_set_counters = (
             await self._async_fetch_all_cartridge_logs()
         )
@@ -323,6 +329,27 @@ class CanonRuiClient:
         if not out:
             out = self._parse_cartridge_log(html)
         return out, set_counters
+
+    @staticmethod
+    def _parse_device_status(html: str) -> dict[str, str]:
+        """Statut affiche sur le portail : imprimante et scanner.
+
+        Bloc observe : « Statut du périphérique / Imprimante : / Une erreur s'est
+        produite. / Scanner : / Mode veille. »
+        """
+        text = _clean(html)
+        index = text.find("Statut du périphérique")
+        if index < 0:
+            return {}
+        body = text[index:]
+        out: dict[str, str] = {}
+        for cle, libelle in (("printer", "Imprimante"), ("scanner", "Scanner")):
+            match = re.search(rf"{libelle}\s*:\s*\n?([^\n]+)", body)
+            if match:
+                valeur = " ".join(match.group(1).split())
+                if valeur and valeur != ":":
+                    out[cle] = valeur
+        return out
 
     @staticmethod
     def _parse_token(html: str) -> str | None:
