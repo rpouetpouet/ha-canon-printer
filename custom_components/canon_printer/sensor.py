@@ -27,6 +27,7 @@ from .const import (
     DEFAULT_YIELD_BLACK,
     DEFAULT_YIELD_COLOR,
     DOMAIN,
+    PRINTER_STATUS,
 )
 from .estimation import TONER_COLORS, TonerEstimate, estimate_cartridges
 from .identity import build_device_info
@@ -371,6 +372,15 @@ class PrinterStatusSensor(PrinterSensorBase):
             "device_status_raw": info.get("device_status_raw"),
             "printer_status_raw": info.get("printer_status_raw"),
         }
+
+        # Traduction lisible de hrPrinterStatus (activite) : la valeur brute
+        # « 3 » ne dit rien, « idle » si. L'etat du capteur reste, lui, la
+        # gravite (hrDeviceStatus : online / warning / down).
+        raw_printer_status = info.get("printer_status_raw")
+        if raw_printer_status is not None:
+            attributes["printer_activity"] = PRINTER_STATUS.get(
+                int(raw_printer_status), "unknown"
+            )
 
         # Statut affiche par l'imprimante elle-meme (IU distante), plus parlant
         # que le code SNMP : « Imprimante : Une erreur s'est produite. »
