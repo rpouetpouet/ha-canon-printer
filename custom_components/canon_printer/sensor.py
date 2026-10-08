@@ -291,13 +291,21 @@ class PrinterStatusSensor(PrinterSensorBase):
         self._attr_unique_id = f"{unique_id}_status"
         self._attr_icon = "mdi:printer"
         self._attr_device_class = SensorDeviceClass.ENUM
+        # La valeur vient de hrDeviceStatus (RFC 2790) : elle peut valoir
+        # n'importe lequel de ces etats. 'other' (1) est renvoye par plusieurs
+        # Canon et n'etait pas declare -> l'entite etait refusee par HA avec
+        # "provides state value 'other', which is not in the list of options".
         self._attr_options = [
+            "other",
+            "unknown",
+            "online",
+            "warning",
+            "testing",
+            "down",
             "idle",
             "printing",
             "warming_up",
-            "online",
             "offline",
-            "unknown",
         ]
 
     @property
