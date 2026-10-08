@@ -27,6 +27,22 @@ READ_TIMEOUT = 20
 # L'IU distante Canon limite les requetes rapprochees : on espace les appels.
 REQUEST_SPACING = 2.0
 
+# Elements de navigation qui ne sont JAMAIS des messages d'erreur : sans ce
+# filtre, le chapeau de page de l'IU distante etait presente comme une erreur.
+_PAGE_NOISE = re.compile(
+    r"Vers le portail|Se déconnecter|Suivi statut/Annulation|"
+    r"Courrier électronique à l'administrateur|Détails de l'erreur|"
+    r"^Une erreur s'est produite\.?$|"
+    r"^Les problèmes dus à l'utilisation de cartouches|"
+    r"^Si ce message persiste",
+    re.I,
+)
+
+# Phrase canonique d'erreur de communication avec une cartouche (repli cible).
+_CARTRIDGE_ERROR = re.compile(
+    r"Impossible d'[eé]tablir la communication avec la cartouche\s+([^.]+)\.", re.I
+)
+
 
 class CanonRuiError(Exception):
     """Erreur generique de dialogue avec l'IU distante."""
@@ -380,32 +396,61 @@ class CanonRuiClient:
 
     @staticmethod
     def _parse_errors(html: str) -> list[str]:
-        """Extrait les messages d'erreur (les cartouches en erreur y figurent)."""
+        """Extrait les messages d'erreur (les cartouches en erreur y figurent).
+
+        La page contient plusieurs occurrences du titre « Informations d'erreur »
+        (titre de page, fil d'Ariane, en-tete de section) : on se place sur la
+        DERNIERE, celle qui precede les messages. En prenant la premiere, le
+        chapeau de navigation (« Vers le portail », « Se déconnecter », ...) etait
+        renvoye comme un message d'erreur — et sur une page sans aucune erreur, le
+        capteur binaire signalait une erreur inexistante.
+        """
         text = _clean(html)
-        # la zone utile commence apres le titre 'Informations d'erreur'
-        idx = text.find("Informations d'erreur")
+        marqueur = "Informations d'erreur"
+        idx = text.rfind(marqueur)
         if idx < 0:
-            idx = text.find("Informations d’erreur")
-        body = text[idx:] if idx >= 0 else text
-        # coupe le pied de page / navigation
-        for stop in ("Imprimer\n", "\nImprimer", "Journal des t", "Statut t", "Fonctions du"):
+            idx = text.rfind("Informations d’erreur")
+        body = text[idx + len(marqueur):] if idx >= 0 else ""
+
+        # coupe la navigation et le pied de page
+        for stop in ("Imprimer\n", "\nImprimer", "Journal des t", "Statut t",
+                     "Fonctions du", "Détails de l'erreur"):
             pos = body.find(stop)
             if pos > 0:
                 body = body[:pos]
         body = re.sub(r"Derni[eè]re mise [aà] jour[^\n]*", " ", body, flags=re.I)
+
         messages: list[str] = []
         for chunk in re.split(r"\n(?=Impossible d|\d+[\)\.]|Le |La |Une |Un )", body):
-            msg = " ".join(chunk.split())
-            msg = msg.replace("Informations d'erreur", "").strip()
-            if len(msg) > 15 and not msg.lower().startswith("l'erreur"):
-                messages.append(msg)
+            msg = " ".join(chunk.split()).replace(marqueur, "").strip()
+            if len(msg) <= 15 or msg.lower().startswith("l'erreur"):
+                continue
+            if _PAGE_NOISE.search(msg):
+                continue
+            # Ne garder que la partie actionnable : le rappel de garantie et
+            # l'hypothese de contrefacon sont repetes sur chaque cartouche (et
+            # « genuine: false » du journal le dit deja mieux).
+            for coupe in ("Si ce message persiste", "Les problèmes dus à l'utilisation"):
+                pos = msg.find(coupe)
+                if pos > 0:
+                    msg = msg[:pos].strip()
+            messages.append(msg[:400].strip())
+
+        if not messages:
+            # Repli cible : certaines pages listent les erreurs sans en-tete de
+            # section. On ne retient alors que la phrase canonique.
+            messages = [
+                f"Impossible d'établir la communication avec la cartouche {m.group(1).strip()}."
+                for m in _CARTRIDGE_ERROR.finditer(text)
+            ]
+
         # deduplication en conservant l'ordre
         seen: set[str] = set()
-        out = []
-        for m in messages:
-            if m not in seen:
-                seen.add(m)
-                out.append(m)
+        out: list[str] = []
+        for msg in messages:
+            if msg not in seen:
+                seen.add(msg)
+                out.append(msg)
         return out
 
     @staticmethod

@@ -1,14 +1,19 @@
 {
   "domain": "canon_printer",
   "name": "Canon Printer (SNMP + Remote UI)",
-  "codeowners": ["@rpouetpouet", "@dsorlov"],
+  "codeowners": [
+    "@rpouetpouet",
+    "@dsorlov"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/rpouetpouet/ha-canon-printer",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/rpouetpouet/ha-canon-printer/issues",
-  "requirements": ["pysnmp==7.1.27"],
-  "version": "0.1.3",
+  "requirements": [
+    "pysnmp==7.1.27"
+  ],
+  "version": "0.1.4",
   "zeroconf": [
     "_printer._tcp.local.",
     "_pdl-datastream._tcp.local.",
