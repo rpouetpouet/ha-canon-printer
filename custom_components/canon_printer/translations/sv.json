@@ -1,0 +1,162 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "SNMP-skrivare installation",
+        "description": "Konfigurera din SNMP-aktiverade skrivare",
+        "menu_options": {
+          "manual": "Ange skrivaruppgifter manuellt",
+          "scan": "Sök efter skrivare i ett nätverksområde"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Upptäckt SNMP-skrivare",
+        "description": "Vill du lägga till denna skrivare?\n\n**Modell:** {model}\n**Tillverkare:** {manufacturer}\n**IP-adress:** {host}"
+      },
+      "manual": {
+        "title": "Konfigurera SNMP-skrivare",
+        "description": "Ange uppgifter för din SNMP-aktiverade skrivare",
+        "data": {
+          "host": "IP-adress",
+          "port": "Port",
+          "snmp_version": "SNMP-version",
+          "community": "Community-sträng",
+          "username": "Användarnamn",
+          "auth_protocol": "Autentiseringsprotokoll",
+          "auth_key": "Autentiseringsnyckel",
+          "priv_protocol": "Integritetsprotokoll",
+          "priv_key": "Integritetsnyckel",
+          "update_interval": "Uppdateringsintervall (sekunder)"
+        }
+      },
+      "scan": {
+        "title": "Sök efter skrivare i nätverket",
+        "description": "Ange ett nätverksområde i CIDR-notation för att söka efter SNMP-aktiverade skrivare.",
+        "data": {
+          "subnet": "Nätverksområde (CIDR, t.ex. 192.168.1.0/24)",
+          "snmp_version": "SNMP-version",
+          "community": "Community-sträng",
+          "port": "Port"
+        }
+      },
+      "scan_select": {
+        "title": "Välj skrivare",
+        "description": "Hittade {count} skrivare i nätverket. Välj en att lägga till.",
+        "data": {
+          "host": "Skrivare"
+        }
+      }
+    },
+    "error": {
+      "invalid_subnet": "Ogiltigt nätverksområde. Använd CIDR-notation, till exempel 192.168.1.0/24.",
+      "subnet_too_large": "Det nätverksområdet är för stort för att skanna. Välj ett mindre område.",
+      "no_printers_found": "Inga SNMP-skrivare hittades i det området.",
+      "cannot_connect": "Kunde inte ansluta till skrivaren. Kontrollera dina inställningar och se till att SNMP är aktiverat.",
+      "unknown": "Oväntat fel uppstod"
+    },
+    "abort": {
+      "already_configured": "Denna skrivare är redan konfigurerad",
+      "not_printer": "Den upptäckta enheten är inte en SNMP-aktiverad skrivare"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Uppdatera SNMP-skrivarinställningar",
+        "description": "Uppdatera konfigurationen för denna skrivare",
+        "data": {
+          "community": "Community-sträng",
+          "username": "Användarnamn",
+          "auth_protocol": "Autentiseringsprotokoll",
+          "auth_key": "Autentiseringsnyckel",
+          "priv_protocol": "Integritetsprotokoll",
+          "priv_key": "Integritetsnyckel",
+          "update_interval": "Uppdateringsintervall (sekunder)",
+          "name_source": "Källa för enhetsnamn"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kunde inte ansluta med de nya inställningarna. Kontrollera din konfiguration."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Inaktiv",
+          "printing": "Skriver ut",
+          "warming_up": "Värmer upp",
+          "offline": "Offline (cachad data)",
+          "unknown": "Okänd"
+        }
+      },
+      "page_count": {
+        "name": "Sidräknare"
+      },
+      "cover_status": {
+        "name": "Lucka status"
+      },
+      "errors": {
+        "name": "Fel"
+      },
+      "display": {
+        "name": "Display"
+      },
+      "black": {
+        "name": "Svart"
+      },
+      "cyan": {
+        "name": "Cyan"
+      },
+      "magenta": {
+        "name": "Magenta"
+      },
+      "yellow": {
+        "name": "Gul"
+      },
+      "light_cyan": {
+        "name": "Ljus cyan"
+      },
+      "light_magenta": {
+        "name": "Ljus magenta"
+      },
+      "photo": {
+        "name": "Foto"
+      },
+      "gray": {
+        "name": "Grå"
+      },
+      "tray_1": {
+        "name": "Fack 1"
+      },
+      "tray_2": {
+        "name": "Fack 2"
+      },
+      "tray_3": {
+        "name": "Fack 3"
+      },
+      "tray_4": {
+        "name": "Fack 4"
+      }
+    }
+  },
+  "services": {
+    "display_text": {
+      "name": "Visa text",
+      "description": "Visa text på skrivarens skärm (om det stöds)",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Skrivarenheten"
+        },
+        "text": {
+          "name": "Text",
+          "description": "Text att visa på skrivaren"
+        }
+      }
+    }
+  }
+}

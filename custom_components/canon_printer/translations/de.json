@@ -1,0 +1,162 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "SNMP-Drucker einrichten",
+        "description": "Konfigurieren Sie Ihren SNMP-fähigen Drucker",
+        "menu_options": {
+          "manual": "Druckerdetails manuell eingeben",
+          "scan": "Netzwerkbereich nach Druckern durchsuchen"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "SNMP-Drucker erkannt",
+        "description": "Möchten Sie diesen Drucker hinzufügen?\n\n**Modell:** {model}\n**Hersteller:** {manufacturer}\n**IP-Adresse:** {host}"
+      },
+      "manual": {
+        "title": "SNMP-Drucker konfigurieren",
+        "description": "Geben Sie die Details für Ihren SNMP-fähigen Drucker ein",
+        "data": {
+          "host": "IP-Adresse",
+          "port": "Port",
+          "snmp_version": "SNMP-Version",
+          "community": "Community-Zeichenfolge",
+          "username": "Benutzername",
+          "auth_protocol": "Authentifizierungsprotokoll",
+          "auth_key": "Authentifizierungsschlüssel",
+          "priv_protocol": "Datenschutzprotokoll",
+          "priv_key": "Datenschutzschlüssel",
+          "update_interval": "Aktualisierungsintervall (Sekunden)"
+        }
+      },
+      "scan": {
+        "title": "Netzwerk nach Druckern durchsuchen",
+        "description": "Geben Sie einen Netzwerkbereich in CIDR-Notation ein, um nach SNMP-fähigen Druckern zu suchen.",
+        "data": {
+          "subnet": "Netzwerkbereich (CIDR, z. B. 192.168.1.0/24)",
+          "snmp_version": "SNMP-Version",
+          "community": "Community-Zeichenfolge",
+          "port": "Port"
+        }
+      },
+      "scan_select": {
+        "title": "Drucker auswählen",
+        "description": "{count} Drucker im Netzwerk gefunden. Wählen Sie einen zum Hinzufügen aus.",
+        "data": {
+          "host": "Drucker"
+        }
+      }
+    },
+    "error": {
+      "invalid_subnet": "Ungültiger Netzwerkbereich. Verwenden Sie die CIDR-Notation, z. B. 192.168.1.0/24.",
+      "subnet_too_large": "Dieser Netzwerkbereich ist zu groß zum Durchsuchen. Wählen Sie einen kleineren Bereich.",
+      "no_printers_found": "In diesem Bereich wurden keine SNMP-Drucker gefunden.",
+      "cannot_connect": "Verbindung zum Drucker fehlgeschlagen. Überprüfen Sie Ihre Einstellungen und stellen Sie sicher, dass SNMP aktiviert ist.",
+      "unknown": "Unerwarteter Fehler aufgetreten"
+    },
+    "abort": {
+      "already_configured": "Dieser Drucker ist bereits konfiguriert",
+      "not_printer": "Das erkannte Gerät ist kein SNMP-fähiger Drucker"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SNMP-Druckereinstellungen aktualisieren",
+        "description": "Aktualisieren Sie die Konfiguration für diesen Drucker",
+        "data": {
+          "community": "Community-Zeichenfolge",
+          "username": "Benutzername",
+          "auth_protocol": "Authentifizierungsprotokoll",
+          "auth_key": "Authentifizierungsschlüssel",
+          "priv_protocol": "Datenschutzprotokoll",
+          "priv_key": "Datenschutzschlüssel",
+          "update_interval": "Aktualisierungsintervall (Sekunden)",
+          "name_source": "Quelle des Gerätenamens"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung mit den neuen Einstellungen fehlgeschlagen. Überprüfen Sie Ihre Konfiguration."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Bereit",
+          "printing": "Druckt",
+          "warming_up": "Aufwärmen",
+          "offline": "Offline (zwischengespeicherte Daten)",
+          "unknown": "Unbekannt"
+        }
+      },
+      "page_count": {
+        "name": "Seitenzähler"
+      },
+      "cover_status": {
+        "name": "Abdeckungsstatus"
+      },
+      "errors": {
+        "name": "Fehler"
+      },
+      "display": {
+        "name": "Anzeige"
+      },
+      "black": {
+        "name": "Schwarz"
+      },
+      "cyan": {
+        "name": "Cyan"
+      },
+      "magenta": {
+        "name": "Magenta"
+      },
+      "yellow": {
+        "name": "Gelb"
+      },
+      "light_cyan": {
+        "name": "Hellcyan"
+      },
+      "light_magenta": {
+        "name": "Hellmagenta"
+      },
+      "photo": {
+        "name": "Foto"
+      },
+      "gray": {
+        "name": "Grau"
+      },
+      "tray_1": {
+        "name": "Fach 1"
+      },
+      "tray_2": {
+        "name": "Fach 2"
+      },
+      "tray_3": {
+        "name": "Fach 3"
+      },
+      "tray_4": {
+        "name": "Fach 4"
+      }
+    }
+  },
+  "services": {
+    "display_text": {
+      "name": "Text anzeigen",
+      "description": "Text auf dem Druckerbildschirm anzeigen (falls unterstützt)",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "Das Druckergerät"
+        },
+        "text": {
+          "name": "Text",
+          "description": "Auf dem Drucker anzuzeigender Text"
+        }
+      }
+    }
+  }
+}

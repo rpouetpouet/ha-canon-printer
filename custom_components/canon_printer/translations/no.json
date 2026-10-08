@@ -1,0 +1,162 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "SNMP-skriver oppsett",
+        "description": "Konfigurer din SNMP-aktiverte skriver",
+        "menu_options": {
+          "manual": "Angi skriverdetaljer manuelt",
+          "scan": "Skann et nettverksområde etter skrivere"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Oppdaget SNMP-skriver",
+        "description": "Vil du legge til denne skriveren?\n\n**Modell:** {model}\n**Produsent:** {manufacturer}\n**IP-adresse:** {host}"
+      },
+      "manual": {
+        "title": "Konfigurer SNMP-skriver",
+        "description": "Angi detaljer for din SNMP-aktiverte skriver",
+        "data": {
+          "host": "IP-adresse",
+          "port": "Port",
+          "snmp_version": "SNMP-versjon",
+          "community": "Community-streng",
+          "username": "Brukernavn",
+          "auth_protocol": "Autentiseringsprotokoll",
+          "auth_key": "Autentiseringsnøkkel",
+          "priv_protocol": "Personvernprotokoll",
+          "priv_key": "Personvernnøkkel",
+          "update_interval": "Oppdateringsintervall (sekunder)"
+        }
+      },
+      "scan": {
+        "title": "Skann nettverk etter skrivere",
+        "description": "Angi et nettverksområde i CIDR-notasjon for å søke etter SNMP-aktiverte skrivere.",
+        "data": {
+          "subnet": "Nettverksområde (CIDR, f.eks. 192.168.1.0/24)",
+          "snmp_version": "SNMP-versjon",
+          "community": "Community-streng",
+          "port": "Port"
+        }
+      },
+      "scan_select": {
+        "title": "Velg skriver",
+        "description": "Fant {count} skriver(e) på nettverket. Velg en å legge til.",
+        "data": {
+          "host": "Skriver"
+        }
+      }
+    },
+    "error": {
+      "invalid_subnet": "Ugyldig nettverksområde. Bruk CIDR-notasjon, for eksempel 192.168.1.0/24.",
+      "subnet_too_large": "Dette nettverksområdet er for stort å skanne. Velg et mindre område.",
+      "no_printers_found": "Ingen SNMP-skrivere ble funnet i det området.",
+      "cannot_connect": "Kunne ikke koble til skriveren. Sjekk innstillingene dine og sørg for at SNMP er aktivert.",
+      "unknown": "Uventet feil oppstod"
+    },
+    "abort": {
+      "already_configured": "Denne skriveren er allerede konfigurert",
+      "not_printer": "Den oppdagede enheten er ikke en SNMP-aktivert skriver"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Oppdater SNMP-skriverinnstillinger",
+        "description": "Oppdater konfigurasjonen for denne skriveren",
+        "data": {
+          "community": "Community-streng",
+          "username": "Brukernavn",
+          "auth_protocol": "Autentiseringsprotokoll",
+          "auth_key": "Autentiseringsnøkkel",
+          "priv_protocol": "Personvernprotokoll",
+          "priv_key": "Personvernnøkkel",
+          "update_interval": "Oppdateringsintervall (sekunder)",
+          "name_source": "Kilde for enhetsnavn"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kunne ikke koble til med de nye innstillingene. Sjekk konfigurasjonen din."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Inaktiv",
+          "printing": "Skriver ut",
+          "warming_up": "Varmer opp",
+          "offline": "Frakoblet (bufrede data)",
+          "unknown": "Ukjent"
+        }
+      },
+      "page_count": {
+        "name": "Sideteller"
+      },
+      "cover_status": {
+        "name": "Deksestatus"
+      },
+      "errors": {
+        "name": "Feil"
+      },
+      "display": {
+        "name": "Skjerm"
+      },
+      "black": {
+        "name": "Svart"
+      },
+      "cyan": {
+        "name": "Cyan"
+      },
+      "magenta": {
+        "name": "Magenta"
+      },
+      "yellow": {
+        "name": "Gul"
+      },
+      "light_cyan": {
+        "name": "Lys cyan"
+      },
+      "light_magenta": {
+        "name": "Lys magenta"
+      },
+      "photo": {
+        "name": "Foto"
+      },
+      "gray": {
+        "name": "Grå"
+      },
+      "tray_1": {
+        "name": "Skuff 1"
+      },
+      "tray_2": {
+        "name": "Skuff 2"
+      },
+      "tray_3": {
+        "name": "Skuff 3"
+      },
+      "tray_4": {
+        "name": "Skuff 4"
+      }
+    }
+  },
+  "services": {
+    "display_text": {
+      "name": "Vis tekst",
+      "description": "Vis tekst på skriverens skjerm (hvis støttet)",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Skriverenheten"
+        },
+        "text": {
+          "name": "Tekst",
+          "description": "Tekst å vise på skriveren"
+        }
+      }
+    }
+  }
+}

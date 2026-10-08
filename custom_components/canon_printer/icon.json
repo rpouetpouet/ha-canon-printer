@@ -1,0 +1,5 @@
+{
+  "domain": "canon_printer",
+  "name": "Canon Printer (SNMP + Remote UI)",
+  "icon": "mdi:printer-wireless"
+}
