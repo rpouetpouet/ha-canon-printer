@@ -559,9 +559,19 @@ class PrinterSupplySensor(PrinterSensorBase):
 
     @property
     def entity_registry_enabled_default(self) -> bool:
-        """Return if the entity should be enabled when first added."""
-        # Always enable supply sensors, even if percentage is not available
-        # This ensures pirated/third-party cartridges that don't report levels are still visible
+        """N'activer le capteur que s'il peut reellement fournir une valeur.
+
+        Une cartouche dont la puce ne repond pas (SNMP ``-2``, IPP ``-1``) reste
+        indefiniment a « unknown » : l'entite est alors creee DESACTIVEE pour ne
+        pas polluer l'interface, et l'utilisateur peut la reactiver d'un clic
+        s'il installe des cartouches d'origine. Le niveau reste suivi par les
+        capteurs d'estimation, qui n'ont pas besoin de la puce.
+        """
+        if not self.coordinator.data or "supplies" not in self.coordinator.data:
+            return True
+        for supply in self.coordinator.data["supplies"]:
+            if supply.get("index") == self._supply.get("index"):
+                return supply.get("percentage") is not None
         return True
 
     @property
