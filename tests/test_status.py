@@ -75,3 +75,17 @@ def test_statut_du_portail_est_extrait():
 def test_statut_du_portail_absent_ne_casse_rien():
     """Une page sans le bloc renvoie un dictionnaire vide, sans exception."""
     assert canon_rui.CanonRuiClient._parse_device_status("<html><body>rien</body></html>") == {}
+
+
+if __name__ == "__main__":
+    passes = echecs = 0
+    for nom in sorted(n for n in dir() if n.startswith("test_")):
+        try:
+            globals()[nom]()
+            print(f"  PASS {nom}")
+            passes += 1
+        except AssertionError as err:
+            print(f"  FAIL {nom}: {err}")
+            echecs += 1
+    print(f"\n{passes} passes, {echecs} echecs")
+    raise SystemExit(1 if echecs else 0)

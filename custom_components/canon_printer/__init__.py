@@ -20,6 +20,8 @@ from homeassistant.helpers.aiohttp_client import (
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .rui_cache import merge_rui_state
+
 from .canon_rui import CanonRuiAuthError, CanonRuiClient, CanonRuiError
 from .identity import parse_model
 from .const import (
@@ -187,6 +189,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Load cached data
     cached_data = await store.async_load() or {}
 
+    # Dernieres valeurs connues de l'IU distante, amorcees depuis le cache.
+    # Sans cela, un redemarrage de Home Assistant fait retomber a « unknown »
+    # tous les capteurs qui en dependent, pendant tout un cycle de poll (le
+    # premier rafraichissement n'obtient pas encore l'IU distante) : deux
+    # ecritures d'etat inutiles par capteur et par redemarrage.
+    last_rui: dict = (cached_data.get("data") or {}).get("rui") or {}
+
     # Device naming preference (issue #19). Reverse DNS results are cached so we
     # don't perform a lookup on every poll.
     name_source = entry.options.get(
@@ -208,6 +217,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Create coordinator
     async def async_update_data():
         """Fetch data from SNMP printer."""
+        nonlocal last_rui
         try:
             system_info = await snmp_client.get_system_info()
             device_info = await snmp_client.get_device_info()
@@ -220,13 +230,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         "enabled": True,
                         **(await rui_client.async_fetch()).as_dict(),
                     }
+                    last_rui = rui_data
                 except (CanonRuiError, CanonRuiAuthError) as err:
                     _LOGGER.warning("IU distante Canon indisponible: %s", err)
-                    rui_data = {
-                        "enabled": True,
-                        "reachable": False,
-                        "error": str(err),
-                    }
+                    # Un echec ponctuel de l'IU ne doit pas vider les capteurs :
+                    # on reconduit la derniere valeur connue, marquee perimee.
+                    rui_data = merge_rui_state(
+                        {
+                            "enabled": True,
+                            "reachable": False,
+                            "error": str(err),
+                        },
+                        last_rui,
+                    )
 
             info = {**system_info, **device_info}
             _async_maybe_fix_title(hass, entry, info)

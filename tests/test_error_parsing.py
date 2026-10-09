@@ -108,3 +108,17 @@ def test_quatre_cartouches_remontees_avec_leur_couleur():
     assert len(messages) == 4
     for couleur in ("cyan", "magenta", "jaune", "noire"):
         assert any(couleur in m for m in messages)
+
+
+if __name__ == "__main__":
+    passes = echecs = 0
+    for nom in sorted(n for n in dir() if n.startswith("test_")):
+        try:
+            globals()[nom]()
+            print(f"  PASS {nom}")
+            passes += 1
+        except AssertionError as err:
+            print(f"  FAIL {nom}: {err}")
+            echecs += 1
+    print(f"\n{passes} passes, {echecs} echecs")
+    raise SystemExit(1 if echecs else 0)

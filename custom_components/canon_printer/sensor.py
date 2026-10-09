@@ -172,6 +172,8 @@ class PrinterRuiCountersSensor(PrinterSensorBase):
             "counters": rui.get("counters") or {},
             "rui_last_update": rui.get("last_update"),
             "rui_reachable": rui.get("reachable"),
+            # true = valeurs reconduites apres un echec de lecture de l'IU
+            "rui_stale": bool(rui.get("stale")),
         }
 
 
