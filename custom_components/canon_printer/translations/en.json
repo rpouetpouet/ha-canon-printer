@@ -181,6 +181,9 @@
       }
     },
     "binary_sensor": {
+      "connectivity": {
+        "name": "Connectivity"
+      },
       "cartridge_error": {
         "name": "Cartridge error"
       }

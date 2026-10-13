@@ -31,8 +31,23 @@ VALUE_KEYS = (
     "errors",
 )
 
+# Valeurs sans lesquelles les capteurs qui dependent de l'IU n'ont plus rien a
+# dire : compteurs detailles (``counters``), journal de cartouches
+# (``cartridges``) et table des pages portees par le jeu en place
+# (``cartridge_set_counters``, d'ou sont tirees les estimations). Une page d'IU
+# analysee partiellement peut se declarer « joignable » sans les fournir.
+REQUIRED_VALUE_KEYS: tuple[str, ...] = (
+    "counters",
+    "cartridges",
+    "cartridge_set_counters",
+)
 
-def merge_rui_state(new_data: dict[str, Any], last_known: dict[str, Any] | None) -> dict[str, Any]:
+
+def merge_rui_state(
+    new_data: dict[str, Any],
+    last_known: dict[str, Any] | None,
+    required: tuple[str, ...] = (),
+) -> dict[str, Any]:
     """Reconduit les dernieres valeurs connues apres un echec de lecture.
 
     ``new_data`` decrit la tentative courante (``reachable: False`` et le
@@ -41,18 +56,27 @@ def merge_rui_state(new_data: dict[str, Any], last_known: dict[str, Any] | None)
     que l'interface puisse afficher « derniere valeur connue » plutot que de
     laisser croire a une mesure fraiche.
 
-    Deux garde-fous :
+    Trois garde-fous :
 
     * la reconduction n'a lieu que sur un echec **constate** (``reachable``
-      explicitement faux) : une lecture reussie est retournee telle quelle,
-      meme si elle ne fournit que peu de valeurs — on ne masque jamais ce que
-      l'imprimante dit vraiment ;
+      explicitement faux) ou sur une lecture declaree reussie mais **incomplete**
+      (``required`` fourni : les valeurs indispensables manquent) : une lecture
+      reussie et complete est retournee telle quelle — on ne masque jamais ce
+      que l'imprimante dit vraiment ;
+    * une lecture incomplete est signalee par ``incomplete: True``, en plus de
+      ``stale: True``, pour rester honnete sur la fraicheur ;
     * sans valeur connue, ``new_data`` est retourne tel quel : aucune valeur
       n'est inventee.
     """
     merged: dict[str, Any] = dict(new_data)
 
-    if new_data.get("reachable") is not False or not last_known:
+    reachable = new_data.get("reachable")
+    failed = reachable is False
+    incomplete = bool(required) and reachable is True and any(
+        not merged.get(key) for key in required
+    )
+
+    if not (failed or incomplete) or not last_known:
         return merged
 
     carried = False
@@ -67,5 +91,7 @@ def merge_rui_state(new_data: dict[str, Any], last_known: dict[str, Any] | None)
 
     if carried:
         merged["stale"] = True
+        if incomplete:
+            merged["incomplete"] = True
 
     return merged

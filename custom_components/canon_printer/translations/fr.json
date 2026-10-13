@@ -181,6 +181,9 @@
       }
     },
     "binary_sensor": {
+      "connectivity": {
+        "name": "Connectivité"
+      },
       "cartridge_error": {
         "name": "Erreur cartouche"
       }

@@ -11,7 +11,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_USERNAME
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import AbortFlow, FlowResult
 from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
@@ -522,7 +522,11 @@ class SNMPPrinterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                     break  # Success, exit the loop
                 else:
-                    _LOGGER.warning(
+                    # Une version SNMP sans donnees n'est pas une anomalie (les
+                    # Canon ne repondent pas a toutes) : c'est le role de la
+                    # boucle d'essayer la suivante. Le WARNING se declenchait a
+                    # chaque reannonce zeroconf, sans rien apprendre.
+                    _LOGGER.debug(
                         "SNMP v%s connected to %s but returned no data, trying next version",
                         snmp_version,
                         host,
@@ -602,6 +606,18 @@ class SNMPPrinterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # If we got here, it's a valid printer
             return await self.async_step_zeroconf_confirm()
 
+        except AbortFlow as err:
+            # « already_configured » n'est pas une erreur : c'est le cas NORMAL
+            # d'un zeroconf qui reannonce une imprimante deja configuree (le
+            # MF660C se reannonce toutes les ~8 min). Le `except Exception` qui
+            # suit journalisait cet abandon en ERROR avec traceback, ce qui
+            # remplissait le journal sans qu'il y ait quoi que ce soit a
+            # reparer ; on laisse HA conclure proprement.
+            SNMPPrinterConfigFlow._discovered_hosts.discard(host)
+            _LOGGER.debug(
+                "Discovered printer at %s is already configured (%s)", host, err.reason
+            )
+            raise
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.error("Error processing discovered device at %s: %s", host, err)
             import traceback

@@ -112,6 +112,44 @@ class SNMPClient:
         self._last_error_log_time = 0
         self._consecutive_failures = 0
 
+        # Suivi de la TENTATIVE en cours (un poll = une tentative). Une
+        # imprimante qui ne repond a AUCUN OID ne doit pas etre prise pour une
+        # lecture reussie : sans ce drapeau, `_get_oid` renvoyait None partout
+        # sans lever d'exception, le coordonnateur croyait le poll reussi et
+        # publiait des valeurs vides (« unknown ») au lieu de signaler la
+        # perte de contact. Cf. begin_poll().
+        self._poll_answered = False
+        self._poll_error: str | None = None
+
+    def begin_poll(self) -> None:
+        """Ouvre une nouvelle tentative (a appeler avant chaque poll)."""
+        self._poll_answered = False
+        self._poll_error = None
+
+    @property
+    def poll_answered(self) -> bool:
+        """La tentative en cours a-t-elle obtenu au moins une reponse ?
+
+        « Reponse » comprend l'aveu « cet OID n'existe pas » : l'agent SNMP a
+        alors bien repondu, donc l'imprimante est joignable.
+        """
+        return self._poll_answered
+
+    @property
+    def poll_error(self) -> str | None:
+        """Dernier message d'erreur de la tentative en cours."""
+        return self._poll_error
+
+    @property
+    def consecutive_failures(self) -> int:
+        """Nombre d'echecs SNMP consecutifs (depuis la derniere reponse)."""
+        return self._consecutive_failures
+
+    @property
+    def connection_state(self) -> str:
+        """Etat de connexion suivi par le client : unknown / online / offline."""
+        return self._connection_state
+
     def _create_engine(self):
         """Create SNMP engine (blocking operation)."""
         if self._engine is None:
@@ -171,6 +209,8 @@ class SNMPClient:
 
     def _mark_connection_success(self) -> None:
         """Mark a successful connection to reset error tracking."""
+        # L'agent vient de repondre : la tentative en cours est une reussie.
+        self._poll_answered = True
         if self._connection_state == "offline":
             _LOGGER.info(
                 "Printer %s is back online after %d failed attempts",
@@ -244,6 +284,7 @@ class SNMPClient:
         )
 
         if errorIndication:
+            self._poll_error = str(errorIndication)
             self._handle_snmp_error(f"SNMP error: {errorIndication}")
             return None
         elif errorStatus:
@@ -302,6 +343,7 @@ class SNMPClient:
             lexicographicMode=False,
         ):
             if errorIndication:
+                self._poll_error = str(errorIndication)
                 self._handle_snmp_error(f"SNMP walk error: {errorIndication}")
                 break
             elif errorStatus:

@@ -20,7 +20,8 @@ from homeassistant.helpers.aiohttp_client import (
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .rui_cache import merge_rui_state
+from .rui_cache import REQUIRED_VALUE_KEYS, merge_rui_state
+from .snmp_cache import build_offline_data
 
 from .canon_rui import CanonRuiAuthError, CanonRuiClient, CanonRuiError
 from .identity import parse_model
@@ -196,6 +197,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # ecritures d'etat inutiles par capteur et par redemarrage.
     last_rui: dict = (cached_data.get("data") or {}).get("rui") or {}
 
+    # Nombre de polls consecutifs sans AUCUNE reponse SNMP. Sert a distinguer un
+    # clignement d'une vraie perte de contact, et a nourrir le capteur de
+    # connectivite (l'imprimante se met en veille profonde : elle cesse
+    # simplement de repondre, sans que rien ne soit « en panne »).
+    offline_polls = 0
+
     # Device naming preference (issue #19). Reverse DNS results are cached so we
     # don't perform a lookup on every poll.
     name_source = entry.options.get(
@@ -217,7 +224,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Create coordinator
     async def async_update_data():
         """Fetch data from SNMP printer."""
-        nonlocal last_rui
+        nonlocal last_rui, offline_polls
+        # Ouvre la tentative : `poll_answered` ne dira « oui » que si l'agent
+        # SNMP a reellement repondu au moins une fois pendant ce poll.
+        snmp_client.begin_poll()
         try:
             system_info = await snmp_client.get_system_info()
             device_info = await snmp_client.get_device_info()
@@ -226,10 +236,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             rui_data: dict = {"enabled": rui_client is not None}
             if rui_client is not None:
                 try:
-                    rui_data = {
+                    fetched = {
                         "enabled": True,
                         **(await rui_client.async_fetch()).as_dict(),
                     }
+                    # Une lecture reussie mais INCOMPLETE (compteurs ou journal
+                    # de cartouches absents) est traitee comme un echec partiel :
+                    # on reconduit les valeurs indispensables au lieu de laisser
+                    # un trou d'un cycle dans les compteurs et les estimations.
+                    rui_data = merge_rui_state(
+                        fetched, last_rui, required=REQUIRED_VALUE_KEYS
+                    )
                     last_rui = rui_data
                 except (CanonRuiError, CanonRuiAuthError) as err:
                     _LOGGER.warning("IU distante Canon indisponible: %s", err)
@@ -242,7 +259,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             "error": str(err),
                         },
                         last_rui,
+                        required=REQUIRED_VALUE_KEYS,
                     )
+                    last_rui = rui_data
+
+            # Aucune reponse SNMP : ce poll n'est PAS un succes. On ne publie
+            # surtout pas ses valeurs vides (elles faisaient tomber les capteurs
+            # a « unknown » le temps d'un cycle) et on n'ecrase pas le cache
+            # avec elles : on reconduit le dernier etat connu et on signale la
+            # perte de contact.
+            if not snmp_client.poll_answered:
+                offline_polls += 1
+                offline_data = build_offline_data(
+                    cached_data,
+                    snmp_client.poll_error,
+                    extra={"rui": rui_data},
+                )
+                if offline_data is None:
+                    raise UpdateFailed(
+                        "Printer %s unreachable: %s"
+                        % (entry.data[CONF_HOST], snmp_client.poll_error)
+                    )
+                _LOGGER.warning(
+                    "Printer %s did not answer (%d poll(s) offline, last contact %s): %s",
+                    entry.data[CONF_HOST],
+                    offline_polls,
+                    offline_data.get("offline_since"),
+                    snmp_client.poll_error,
+                )
+                offline_data["consecutive_failures"] = snmp_client.consecutive_failures
+                offline_data["offline_polls"] = offline_polls
+                return offline_data
 
             info = {**system_info, **device_info}
             _async_maybe_fix_title(hass, entry, info)
@@ -275,6 +322,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             # Mark as online
             data["is_online"] = True
+            offline_polls = 0
+            data["offline_polls"] = 0
+            data["consecutive_failures"] = snmp_client.consecutive_failures
 
             return data
         except Exception as err:

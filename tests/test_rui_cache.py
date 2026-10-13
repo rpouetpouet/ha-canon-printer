@@ -103,6 +103,53 @@ def test_le_dernier_etat_n_est_pas_modifie():
     assert "stale" not in DERNIER_CONNU
 
 
+def test_une_lecture_incomplete_ne_laisse_pas_de_trou():
+    """Motif reel (13/10/2026 08:58) : l'IU s'est declaree joignable mais la
+    page analysee ne contenait ni compteurs ni journal de cartouches — les
+    compteurs detailles passaient a « unknown » et les estimations a
+    « unavailable » le temps d'un cycle. Une lecture reussie mais incomplete
+    doit reconduire les valeurs indispensables."""
+    resultat = merge_rui_state(
+        {"enabled": True, "reachable": True, "last_update": "2026-10-13T08:58:14"},
+        DERNIER_CONNU,
+        required=("counters", "cartridges", "cartridge_set_counters"),
+    )
+    assert resultat["counters"] == DERNIER_CONNU["counters"]
+    assert resultat["cartridges"] == DERNIER_CONNU["cartridges"]
+    assert resultat["cartridge_set_counters"] == DERNIER_CONNU["cartridge_set_counters"]
+    assert resultat["stale"] is True
+    assert resultat["incomplete"] is True
+    assert resultat["reachable"] is True  # la tentative, elle, a bien abouti
+
+
+def test_une_lecture_reussie_et_complete_n_est_pas_touchee():
+    """Le garde-fou ne doit pas transformer une lecture complete en perimee."""
+    complet = {
+        "enabled": True,
+        "reachable": True,
+        "counters": {"301 Impression": 1275},
+        "cartridges": {"noir": [{"first_used": "2026-05-10"}]},
+        "cartridge_set_counters": {"C2": {"units": 4, "pages": 862}},
+    }
+    resultat = merge_rui_state(
+        complet, DERNIER_CONNU, required=("counters", "cartridges", "cartridge_set_counters")
+    )
+    assert resultat == complet
+    assert "stale" not in resultat
+    assert "incomplete" not in resultat
+
+
+def test_lecture_incomplete_sans_valeur_connue_aucune_invention():
+    """Incomplete, mais rien en memoire : on ne fabrique toujours rien."""
+    resultat = merge_rui_state(
+        {"enabled": True, "reachable": True, "last_update": "2026-10-13T08:58:14"},
+        None,
+        required=("counters",),
+    )
+    assert "counters" not in resultat
+    assert "stale" not in resultat
+
+
 if __name__ == "__main__":
     passes = echecs = 0
     for nom in sorted(n for n in dir() if n.startswith("test_")):

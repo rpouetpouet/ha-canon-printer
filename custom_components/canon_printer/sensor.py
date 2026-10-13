@@ -301,6 +301,9 @@ class PrinterTonerEstimateSensor(PrinterSensorBase):
         attributes = estimate.as_attributes()
         attributes["pages_with_current_set"] = rui.get("cartridge_set_pages")
         attributes["source"] = "compteurs imprimante + journal de cartouche (IU distante)"
+        # true = valeurs de l'IU reconduites (lecture en echec ou incomplete) :
+        # l'estimation reste affichee, mais on annonce sa fraicheur.
+        attributes["rui_stale"] = bool(rui.get("stale"))
         return attributes
 
 

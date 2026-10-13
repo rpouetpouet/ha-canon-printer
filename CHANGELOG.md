@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2026-10-13
+
+### Added
+- New **Connectivity** binary sensor (`device_class: connectivity`), one per
+  printer. Nothing used to answer the question "is the printer still
+  answering?": when the printer stopped replying to SNMP (deep sleep,
+  unplugged, changed IP) the data sensors kept showing the last known values
+  — which is the intended behaviour — but nothing distinguished a fresh
+  reading from a carried-over one. The sensor turns `off` on the first poll
+  without an answer and exposes `last_contact`, `offline_polls`,
+  `offline_error` and the Remote UI reachability, so an automation can alert
+  on it.
+
+### Fixed
+- **A poll without any SNMP answer is no longer treated as a success.** The
+  SNMP client returned `None` for every OID instead of raising, so the
+  coordinator never reached its cached-data fallback and published empty
+  values: the page counter and the display text switched to `unknown` for a
+  whole poll cycle (measured: 09:56:04 → 10:01:10, one 300 s cycle) before
+  coming back, with nothing pointing at the printer being unreachable. The
+  client now tracks whether the agent actually answered during the poll; if
+  not, the coordinator serves the last known data, marks it as offline
+  (`is_online: false`, `offline_since`, `offline_error`) and leaves the cache
+  untouched instead of overwriting it with empty values.
+- **A successful but incomplete Remote UI reading no longer leaves holes.**
+  When the Remote UI answered without the values the sensors need (detailed
+  counters, cartridge log, cartridge-set page table), the detailed counters
+  fell to `unknown` and the toner estimates to `unavailable` for a cycle.
+  `merge_rui_state()` now carries the mandatory values over in that case too
+  and flags the result as `stale` **and** `incomplete` — the failing attempt
+  is still reported honestly (`reachable` reflects the attempt, not the last
+  success).
+- Discovery log noise: an already-configured printer re-announced over
+  zeroconf (every ~8 minutes on an MF660C) is no longer logged as
+  `ERROR ... Flow aborted: already_configured` with a traceback, and a SNMP
+  version that answers with no data is no longer a warning — it is the
+  normal case the version loop handles.
+
+### Changed
+- The toner estimate sensors now expose `rui_stale`, so a carried-over
+  estimate can be told apart from a freshly computed one.
+
 ## [1.3.0] - 2026-07-15
 
 ### Added

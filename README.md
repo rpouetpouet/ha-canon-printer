@@ -28,6 +28,7 @@ Are you tired of different printers and different integrations? I was, this is a
 - :bar_chart: **Monitoring**: Track printer status, toner levels, paper trays, drums, and more
 - :wrench: **SNMP Version Configuration**: Support for SNMP v1, v2c, and v3
 - :floppy_disk: **Cached Values**: Remembers last known sensor values when printer is offline, so you can check toner levels without turning on the printer
+- :satellite: **Connectivity Sensor**: Reports whether the printer answered the last poll, with the timestamp of the last contact — so a silent printer can be told apart from a fresh reading
 - :robot: **Automation Ready**: Trigger automations based on printer events
 
 ## Supported Sensors
@@ -42,6 +43,7 @@ For each configured printer, the integration creates:
 - **Waste Container Sensor**: Waste toner box fill level
 - **Drum Unit Sensors**: Remaining life for drum units
 - **Other Consumables**: Belt units, finishers, etc.
+- **Connectivity Binary Sensor**: Whether the printer answered the last poll (`on`/`off`), with `last_contact`, `offline_polls`, `offline_error` and Remote UI reachability as attributes
 
 ## Installation
 

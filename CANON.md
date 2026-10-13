@@ -123,6 +123,29 @@ version must be bumped for HACS to deliver them.
    - `Admin mode` → off is enough for errors/counters/log
    - `System Manager ID` → only if your printer requires it
 
+## Lost contact: the Connectivity sensor
+
+`binary_sensor.<printer>_connectivity` (device class `connectivity`, always
+created, Remote UI or not) answers *"is the printer still answering?"*.
+
+Why it exists: the data sensors deliberately keep the **last known values**
+when the printer goes quiet (deep sleep, unplugged, IP changed) — that is what
+makes a toner level readable without waking the printer. Nothing, however,
+distinguished a fresh reading from a carried-over one, and a SNMP poll that got
+**no answer at all** used to be treated as a successful empty reading, so the
+page counter and the display text flipped to `unknown` for a whole poll cycle.
+
+- `on` = the printer answered the last poll; `off` = it did not.
+- Attributes: `last_contact` (timestamp of the last successful poll),
+  `offline_polls` (consecutive polls without an answer), `offline_error`,
+  `snmp_consecutive_failures`, `rui_reachable`, `rui_stale`.
+- A poll with no answer never overwrites the cache with empty values: the
+  coordinator serves the last known data flagged `is_online: false`.
+- Deep sleep is the common case on a Canon: it stops answering SNMP without
+  anything being broken. Set `update_interval` to something long (the default
+  is 300 s) and trigger the alert on `offline_polls > 1` if you do not want a
+  single missed cycle to wake you up.
+
 ## Implementation notes / pitfalls
 
 - **`aiohttp` refuses cookies from an IP host by default.** Without
