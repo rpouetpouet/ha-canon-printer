@@ -62,22 +62,34 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Modules MIB que pysnmp compile paresseusement au premier get_cmd (mesure sur
-# pysnmp 7.1.27 : PYSNMP-SOURCE-MIB, PYSNMP-MIB, SNMPv2-TM). A charger dans
-# l'executeur, jamais depuis la boucle d'evenements.
-_PYSNMP_EAGER_MIBS = ("PYSNMP-SOURCE-MIB", "PYSNMP-MIB", "SNMPv2-TM")
+# Modules MIB que pysnmp compile paresseusement pendant une requete (mesure sur
+# pysnmp 7.1.27 face au MF660C) :
+#   - PYSNMP-SOURCE-MIB, PYSNMP-MIB, SNMPv2-TM : resolution des varbinds de la
+#     REQUETE (make_varbinds, dans le thread appelant) ;
+#   - __SNMPv2-MIB : resolution de la REPONSE (unmake_varbinds, depuis le
+#     callback de reception, donc aussi dans la boucle d'evenements).
+# A charger dans l'executeur, jamais depuis la boucle d'evenements.
+_PYSNMP_EAGER_MIBS = (
+    "PYSNMP-SOURCE-MIB",
+    "PYSNMP-MIB",
+    "SNMPv2-TM",
+    "__SNMPv2-MIB",
+)
 
 
 def _preload_pysnmp_mibs(engine: SnmpEngine) -> None:
     """Charge d'avance les MIB de pysnmp (appelee dans un executeur).
 
-    Best effort : un echec laisse simplement pysnmp charger les modules au
-    premier poll (comportement anterieur), il ne doit pas empecher le setup.
+    Best effort, module par module : un module introuvable laisse simplement
+    pysnmp le chargera au premier poll (comportement anterieur), il ne doit pas
+    empecher le setup ni sauter les modules suivants.
     """
-    try:
-        engine.get_mib_builder().load_modules(*_PYSNMP_EAGER_MIBS)
-    except Exception as err:  # noqa: BLE001 - jamais bloquant pour le setup
-        _LOGGER.debug("Prechargement des MIB pysnmp incomplet: %s", err)
+    builder = engine.get_mib_builder()
+    for module in _PYSNMP_EAGER_MIBS:
+        try:
+            builder.load_modules(module)
+        except Exception as err:  # noqa: BLE001 - jamais bloquant pour le setup
+            _LOGGER.debug("Prechargement MIB pysnmp %s impossible: %s", module, err)
 
 
 class SNMPClient:
