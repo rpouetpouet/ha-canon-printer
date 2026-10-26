@@ -27,6 +27,12 @@ VALUE_KEYS = (
     "counters",
     "cartridges",
     "cartridge_set_counters",
+    # Entrees du calcul d'estimation (cf. estimation.py) : sans elles, les
+    # capteurs « niveau estime » passent a `unavailable` au moindre trou, meme
+    # quand les compteurs sont reconduits.
+    "cartridge_set_type",
+    "cartridge_set_install_date",
+    "cartridge_set_pages",
     "device_status",
     "errors",
 )
@@ -41,6 +47,38 @@ REQUIRED_VALUE_KEYS: tuple[str, ...] = (
     "cartridges",
     "cartridge_set_counters",
 )
+
+
+def update_reference(
+    last_known: dict[str, Any] | None, merged: dict[str, Any]
+) -> dict[str, Any]:
+    """Nouvelle reference des valeurs connues de l'IU distante.
+
+    Regle : seule une lecture **complete et reussie** remplace la reference. Une
+    lecture partielle ou un echec ne doit JAMAIS ecraser les dernieres valeurs
+    connues, sinon la reconduction suivante n'a plus rien a reconduire et le
+    trou devient definitif jusqu'au redemarrage de Home Assistant (observe le
+    26/10/2026 : estimations a ``unavailable`` pendant 2 h 50, alors que le SNMP
+    repondait normalement).
+    """
+    if not merged:
+        return last_known or {}
+    if merged.get("stale") or merged.get("incomplete"):
+        return last_known or {}
+    return merged
+
+
+def reference_from_cache(cached_rui: dict[str, Any] | None) -> dict[str, Any]:
+    """Reference amorcee depuis le cache : on ne garde que les champs porteurs.
+
+    Une lecture partielle enregistree (page d'IU vide) ne doit pas devenir la
+    reference au demarrage.
+    """
+    return {
+        key: value
+        for key, value in (cached_rui or {}).items()
+        if value and key != "enabled"
+    }
 
 
 def merge_rui_state(

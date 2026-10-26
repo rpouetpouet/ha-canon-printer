@@ -20,7 +20,12 @@ from homeassistant.helpers.aiohttp_client import (
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .rui_cache import REQUIRED_VALUE_KEYS, merge_rui_state
+from .rui_cache import (
+    REQUIRED_VALUE_KEYS,
+    merge_rui_state,
+    reference_from_cache,
+    update_reference,
+)
 from .snmp_cache import build_offline_data
 
 from .canon_rui import CanonRuiAuthError, CanonRuiClient, CanonRuiError
@@ -195,7 +200,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # tous les capteurs qui en dependent, pendant tout un cycle de poll (le
     # premier rafraichissement n'obtient pas encore l'IU distante) : deux
     # ecritures d'etat inutiles par capteur et par redemarrage.
-    last_rui: dict = (cached_data.get("data") or {}).get("rui") or {}
+    # `last_rui` : reference des dernieres valeurs CONNUES de l'IU distante.
+    # On ne reprend du cache que les champs reellement porteurs d'une valeur :
+    # une lecture partielle enregistree (page vide) ne doit pas devenir la
+    # reference, sinon plus rien n'est reconduit et les capteurs d'estimation
+    # restent a `unavailable` jusqu'au redemarrage.
+    _cached_rui = (cached_data.get("data") or {}).get("rui") or {}
+    last_rui: dict = reference_from_cache(_cached_rui)
 
     # Nombre de polls consecutifs sans AUCUNE reponse SNMP. Sert a distinguer un
     # clignement d'une vraie perte de contact, et a nourrir le capteur de
@@ -247,7 +258,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     rui_data = merge_rui_state(
                         fetched, last_rui, required=REQUIRED_VALUE_KEYS
                     )
-                    last_rui = rui_data
+                    # Seule une lecture COMPLETE remplace la reference : une
+                    # lecture partielle (page d'IU vide ou tronquee) ecraserait
+                    # `last_rui` et priverait tous les polls suivants de la
+                    # valeur a reconduire -> capteurs d'estimation bloques a
+                    # `unavailable` jusqu'au redemarrage (observe le 26/10).
+                    if rui_data.get("stale"):
+                        _LOGGER.warning(
+                            "IU distante: lecture incomplete (%s manquant) - "
+                            "valeurs precedentes reconduites",
+                            ", ".join(
+                                key for key in REQUIRED_VALUE_KEYS if not rui_data.get(key)
+                            )
+                            or "contenu",
+                        )
+                    # Seule une lecture complete remplace la reference.
+                    last_rui = update_reference(last_rui, rui_data)
                 except (CanonRuiError, CanonRuiAuthError) as err:
                     _LOGGER.warning("IU distante Canon indisponible: %s", err)
                     # Un echec ponctuel de l'IU ne doit pas vider les capteurs :
@@ -261,7 +287,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         last_rui,
                         required=REQUIRED_VALUE_KEYS,
                     )
-                    last_rui = rui_data
+                    # `last_rui` reste la derniere lecture COMPLETE : un echec
+                    # n'est pas une information a conserver comme reference.
 
             # Aucune reponse SNMP : ce poll n'est PAS un succes. On ne publie
             # surtout pas ses valeurs vides (elles faisaient tomber les capteurs

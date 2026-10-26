@@ -52,6 +52,30 @@ class CanonRuiAuthError(CanonRuiError):
     """Identifiants refuses."""
 
 
+class CanonRuiSessionError(CanonRuiError):
+    """Session de l'IU distante expiree (a renouveler par un login)."""
+
+
+# Marqueurs de la page « session expiree ». L'IU ne renvoie AUCUNE erreur HTTP :
+# une page demandee sans session valide redirige (302) vers /t_sessError.html,
+# qui repond 200 avec « La session a expiré. ». Sans detection, le client croit
+# avoir lu une page valide et sert des donnees VIDES a chaque poll, sans fin.
+_SESSION_ERROR = re.compile(
+    r"session\s+a\s+expir[ée]|session\s+has\s+expired|session\s+is\s+expired",
+    re.I,
+)
+
+
+def is_session_error_page(body: str, final_url: str | None = None) -> bool:
+    """Vrai si la page recue est la page « session expiree » de l'IU distante.
+
+    Testable sans imprimante : c'est une simple reconnaissance de forme.
+    """
+    if final_url and "sessError" in final_url:
+        return True
+    return bool(_SESSION_ERROR.search(body or ""))
+
+
 def _clean(html: str) -> str:
     """Retire scripts/styles/balises et normalise les espaces."""
     html = re.sub(r"<script.*?</script>", " ", html, flags=re.S | re.I)
@@ -242,10 +266,16 @@ class CanonRuiClient:
                 self._base + path, timeout=timeout, allow_redirects=True
             ) as resp:
                 body = await resp.text(errors="replace")
+                final_url = str(resp.url)
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise CanonRuiError(f"{path}: {err}") from err
         if expect_html and resp.status >= 400:
             raise CanonRuiError(f"{path}: HTTP {resp.status}")
+        if path not in ("/", "/checkLogin.cgi") and is_session_error_page(
+            body, final_url
+        ):
+            self._logged_in = False
+            raise CanonRuiSessionError(f"{path}: session expiree")
         return body
 
     async def _post(self, path: str, data: dict[str, str]) -> str:
@@ -258,9 +288,16 @@ class CanonRuiClient:
             async with self._session.post(
                 self._base + path, data=data, timeout=timeout, allow_redirects=True
             ) as resp:
-                return await resp.text(errors="replace")
+                body = await resp.text(errors="replace")
+                final_url = str(resp.url)
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise CanonRuiError(f"POST {path}: {err}") from err
+        # Le formulaire de login contient legitimement un champ i2101 : on ne
+        # teste la page « session expiree » que hors /checkLogin.cgi.
+        if path != "/checkLogin.cgi" and is_session_error_page(body, final_url):
+            self._logged_in = False
+            raise CanonRuiSessionError(f"POST {path}: session expiree")
+        return body
 
     async def async_login(self) -> None:
         """Ouvre une session. Leve CanonRuiAuthError si refusee."""
@@ -279,7 +316,22 @@ class CanonRuiClient:
         self._logged_in = True
 
     async def async_fetch(self) -> CanonRuiData:
-        """Recupere et parse les pages utiles."""
+        """Recupere et parse les pages utiles.
+
+        Une session expiree est renouvelee UNE fois : sans cela, le client
+        restait « connecte » aux yeux du code tout en ne recevant plus que des
+        pages vides, et les capteurs restaient a `unavailable` jusqu'au
+        redemarrage de Home Assistant.
+        """
+        try:
+            return await self._async_fetch_once()
+        except CanonRuiSessionError as err:
+            _LOGGER.warning("IU distante: session expiree (%s), reconnexion", err)
+            self._logged_in = False
+            return await self._async_fetch_once()
+
+    async def _async_fetch_once(self) -> CanonRuiData:
+        """Une passe de lecture complete (login si necessaire)."""
         if not self._logged_in:
             await self.async_login()
         data = CanonRuiData(reachable=True)

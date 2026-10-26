@@ -62,6 +62,23 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Modules MIB que pysnmp compile paresseusement au premier get_cmd (mesure sur
+# pysnmp 7.1.27 : PYSNMP-SOURCE-MIB, PYSNMP-MIB, SNMPv2-TM). A charger dans
+# l'executeur, jamais depuis la boucle d'evenements.
+_PYSNMP_EAGER_MIBS = ("PYSNMP-SOURCE-MIB", "PYSNMP-MIB", "SNMPv2-TM")
+
+
+def _preload_pysnmp_mibs(engine: SnmpEngine) -> None:
+    """Charge d'avance les MIB de pysnmp (appelee dans un executeur).
+
+    Best effort : un echec laisse simplement pysnmp charger les modules au
+    premier poll (comportement anterieur), il ne doit pas empecher le setup.
+    """
+    try:
+        engine.get_mib_builder().load_modules(*_PYSNMP_EAGER_MIBS)
+    except Exception as err:  # noqa: BLE001 - jamais bloquant pour le setup
+        _LOGGER.debug("Prechargement des MIB pysnmp incomplet: %s", err)
+
 
 class SNMPClient:
     """SNMP client for printer communication."""
@@ -227,6 +244,12 @@ class SNMPClient:
             # build it in an executor to avoid blocking the event loop (issue #20).
             loop = asyncio.get_running_loop()
             self._engine = await loop.run_in_executor(None, SnmpEngine)
+            # pysnmp compile encore trois modules MIB au PREMIER get_cmd, dans le
+            # thread appelant : mesure faite, 9 I/O fichiers (open + listdir) dans
+            # la boucle d'evenements de Home Assistant, d'ou « Setup of sensor
+            # platform canon_printer is taking over 10 seconds » a chaque
+            # demarrage. Les charger ici (executeur) les met en cache pour de bon.
+            await loop.run_in_executor(None, _preload_pysnmp_mibs, self._engine)
         if self._transport is None:
             self._transport = await UdpTransportTarget.create(
                 (self.host, self.port),
