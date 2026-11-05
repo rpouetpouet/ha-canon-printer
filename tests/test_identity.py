@@ -58,16 +58,19 @@ def _load_module(name: str, path: Path):
     return module
 
 
-def _import_identity():
+def _import_component():
     _install_homeassistant_stubs()
     package = types.ModuleType("cp")
     package.__path__ = [str(PKG_DIR)]
     sys.modules.setdefault("cp", package)
     _load_module("cp.const", PKG_DIR / "const.py")
-    return _load_module("cp.identity", PKG_DIR / "identity.py")
+    return (
+        _load_module("cp.identity", PKG_DIR / "identity.py"),
+        _load_module("cp.snmp_cache", PKG_DIR / "snmp_cache.py"),
+    )
 
 
-identity = _import_identity()
+identity, snmp_cache = _import_component()
 
 
 class FakeEntry:
@@ -143,6 +146,37 @@ def test_build_device_info_identifier_is_stable():
     assert device_info_silent["identifiers"] == {("canon_printer", "entry-0001")}
     for identifier in device_info_silent["identifiers"]:
         assert "192.168.42.27" not in str(identifier)
+
+
+def test_offline_payload_from_cache_keeps_serial():
+    """Le vrai build_offline_data doit laisser passer le numero de serie.
+
+    C'est ce chemin qui alimente les entites quand l'imprimante se tait : si la
+    serie disparaissait du payload reconduit, les entites changeraient
+    d'identifiant et un second jeu d'entites apparaitrait.
+    """
+    cached = {
+        "data": {
+            "info": {"serial_number": "45V26267", "description": "Canon MF660C"},
+            "is_online": True,
+        },
+        "timestamp": "2026-11-05T07:00:00",
+    }
+    offline = snmp_cache.build_offline_data(cached, "timeout")
+    assert offline is not None
+    assert offline["info"]["serial_number"] == "45V26267", offline
+    entry = FakeEntry({"host": "192.168.42.27"}, entry_id="entry-0001")
+    assert identity.resolve_unique_id(offline, entry) == "45V26267"
+
+
+def test_no_cache_means_no_data_not_an_empty_identity():
+    """Sans cache, build_offline_data renvoie None : l'appelant doit echouer.
+
+    C'est ce que fait desormais async_setup_entry (ConfigEntryNotReady) pour ne
+    pas creer d'entites indexees sur l'entry_id.
+    """
+    assert snmp_cache.build_offline_data(None, "timeout") is None
+    assert snmp_cache.build_offline_data({}, "timeout") is None
 
 
 if __name__ == "__main__":

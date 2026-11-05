@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13] - 2026-11-05
+
+Second pass on the device-identity fix — three holes the 0.1.12 review missed.
+
+### Fixed
+- **The last known serial number is seeded from the cache at startup.**
+  0.1.12 only carried it over inside the online branch, so an entry that had
+  never completed an online poll in the current process (printer silent since
+  boot, data served from the store) started with no known serial: the first
+  partial answer would then have fallen back to the entry id and produced a
+  second set of entities.
+- **The offline payload always carries the serial number.** `build_offline_data`
+  rebuilds `info` from the store; when that cached `info` came from a partial
+  poll the serial was missing. It is now re-injected from the last known value.
+- **Setup fails cleanly instead of creating throw-away entities.** With no
+  answer *and* no cache, the serial number was unknown and the platforms were
+  still set up, keying every entity on the entry id — the wrong identity. The
+  entry now raises `ConfigEntryNotReady`, so Home Assistant retries setup until
+  the printer answers and the entities are created with the real identity.
+
+### Added
+- Two more tests in `tests/test_identity.py` (10 total): the real
+  `build_offline_data()` keeps the serial, and an empty cache yields no data
+  (the caller must fail rather than invent an identity).
+
 ## [0.1.12] - 2026-11-05
 
 ### Fixed

@@ -211,7 +211,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Dernier numero de serie lu. C'est l'IDENTITE de l'appareil : il est
     # reconduit quand un poll repond partiellement, pour ne jamais retomber sur
     # un identifiant derive de l'IP (cf. identity.resolve_unique_id).
-    known_serial: str | None = None
+    known_serial: str | None = (
+        ((cached_data.get("data") or {}).get("info") or {}).get("serial_number") or None
+    )
 
     # Nombre de polls consecutifs sans AUCUNE reponse SNMP. Sert a distinguer un
     # clignement d'une vraie perte de contact, et a nourrir le capteur de
@@ -319,6 +321,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     offline_data.get("offline_since"),
                     snmp_client.poll_error,
                 )
+                # Le cache reconstitue ``info`` : la serie y est normalement.
+                # Si elle manque (cache ecrit par un poll partiel), on la remet
+                # depuis la derniere valeur connue — c'est l'identite de
+                # l'appareil ET des entites (cf. identity.resolve_unique_id).
+                if known_serial and not (
+                    (offline_data.get("info") or {}).get("serial_number")
+                ):
+                    offline_data.setdefault("info", {})["serial_number"] = known_serial
+
                 offline_data["consecutive_failures"] = snmp_client.consecutive_failures
                 offline_data["offline_polls"] = offline_polls
                 return offline_data
@@ -419,6 +430,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Fetch initial data (non-blocking, allows offline printers to complete setup)
     # This prevents blocking Home Assistant boot when printer is unreachable
     await coordinator.async_refresh()
+
+    # Aucune donnee du tout (imprimante muette ET aucun cache) : le numero de
+    # serie — identite de l'appareil et de ses entites — n'est pas connu. Creer
+    # les entites maintenant les indexerait sur un identifiant provisoire et un
+    # SECOND jeu d'entites apparaitrait des que l'imprimante repondrait. On
+    # laisse Home Assistant reessayer (ConfigEntryNotReady) au lieu de creer
+    # des entites jetables.
+    if coordinator.data is None:
+        raise ConfigEntryNotReady(
+            f"Printer {entry.data[CONF_HOST]} did not answer and no cached data is "
+            "available: device serial number (device and entity identity) is unknown"
+        )
 
     # Store coordinator, client, and storage
     hass.data[DOMAIN][entry.entry_id] = {
