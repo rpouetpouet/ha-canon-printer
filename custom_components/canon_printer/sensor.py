@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, PERCENTAGE, UnitOfTime
+from homeassistant.const import PERCENTAGE, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -30,7 +30,7 @@ from .const import (
     PRINTER_STATUS,
 )
 from .estimation import TONER_COLORS, TonerEstimate, estimate_cartridges
-from .identity import build_device_info
+from .identity import build_device_info, resolve_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,13 +134,7 @@ class PrinterRuiCountersSensor(PrinterSensorBase):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_rui_counters"
         self._attr_translation_key = "rui_counters"
         self._attr_icon = "mdi:counter"
@@ -191,13 +185,7 @@ class PrinterRuiCartridgeLogSensor(PrinterSensorBase):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_rui_cartridges"
         self._attr_translation_key = "rui_cartridge_log"
         self._attr_icon = "mdi:package-variant-closed"
@@ -256,13 +244,7 @@ class PrinterTonerEstimateSensor(PrinterSensorBase):
         super().__init__(coordinator, entry)
         self._color = color
         self._attr_translation_key = f"estimated_{color}"
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_estimated_{color}"
         self._attr_native_unit_of_measurement = PERCENTAGE
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -318,13 +300,7 @@ class PrinterStatusSensor(PrinterSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_translation_key = "status"
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_status"
         self._attr_icon = "mdi:printer"
         self._attr_device_class = SensorDeviceClass.ENUM
@@ -417,13 +393,7 @@ class PrinterCoverStatusSensor(PrinterSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_translation_key = "cover_status"
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_cover_status"
         self._attr_icon = "mdi:printer-3d-nozzle-alert"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -460,13 +430,7 @@ class PrinterPageCountSensor(PrinterSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_translation_key = "page_count"
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_page_count"
         self._attr_icon = "mdi:counter"
         self._attr_native_unit_of_measurement = "pages"
@@ -528,13 +492,7 @@ class PrinterSupplySensor(PrinterSensorBase):
             # Fallback to description for non-standard supplies
             self._attr_name = supply.get("description", "Supply")
 
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_supply_{supply.get('index')}"
         self._attr_native_unit_of_measurement = PERCENTAGE
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -664,13 +622,7 @@ class PrinterTraySensor(PrinterSensorBase):
             # For non-standard trays (e.g., "MP Tray"), use explicit name
             self._attr_name = tray_name
 
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_tray_{tray.get('index')}"
         self._attr_native_unit_of_measurement = PERCENTAGE
         self._attr_icon = "mdi:tray"
@@ -734,13 +686,7 @@ class PrinterErrorSensor(PrinterSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_translation_key = "errors"
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_errors"
         self._attr_icon = "mdi:alert"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -772,13 +718,7 @@ class PrinterDisplayTextSensor(PrinterSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, entry)
         self._attr_translation_key = "display"
-        unique_id = (
-            self.coordinator.data.get("info", {}).get(
-                "serial_number", entry.data[CONF_HOST]
-            )
-            if self.coordinator.data
-            else entry.data[CONF_HOST]
-        )
+        unique_id = resolve_unique_id(self.coordinator.data, entry)
         self._attr_unique_id = f"{unique_id}_display"
         self._attr_icon = "mdi:text-box"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC

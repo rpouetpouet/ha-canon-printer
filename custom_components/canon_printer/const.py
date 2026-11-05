@@ -35,6 +35,7 @@ CONF_PRIV_PROTOCOL: Final = "priv_protocol"
 CONF_PRIV_KEY: Final = "priv_key"
 CONF_NAME_SOURCE: Final = "name_source"
 CONF_SUBNET: Final = "subnet"
+CONF_SERIAL_NUMBER: Final = "serial_number"
 
 # Defaults
 DEFAULT_PORT: Final = 161

@@ -208,6 +208,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _cached_rui = (cached_data.get("data") or {}).get("rui") or {}
     last_rui: dict = reference_from_cache(_cached_rui)
 
+    # Dernier numero de serie lu. C'est l'IDENTITE de l'appareil : il est
+    # reconduit quand un poll repond partiellement, pour ne jamais retomber sur
+    # un identifiant derive de l'IP (cf. identity.resolve_unique_id).
+    known_serial: str | None = None
+
     # Nombre de polls consecutifs sans AUCUNE reponse SNMP. Sert a distinguer un
     # clignement d'une vraie perte de contact, et a nourrir le capteur de
     # connectivite (l'imprimante se met en veille profonde : elle cesse
@@ -235,7 +240,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Create coordinator
     async def async_update_data():
         """Fetch data from SNMP printer."""
-        nonlocal last_rui, offline_polls
+        nonlocal last_rui, offline_polls, known_serial
         # Ouvre la tentative : `poll_answered` ne dira « oui » que si l'agent
         # SNMP a reellement repondu au moins une fois pendant ce poll.
         snmp_client.begin_poll()
@@ -319,6 +324,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 return offline_data
 
             info = {**system_info, **device_info}
+
+            # Reconduction du numero de serie : une reponse SNMP partielle ne
+            # doit pas faire perdre l'identite de l'appareil (qui sert aussi aux
+            # unique_id d'entites).
+            serial = " ".join(str(info.get("serial_number") or "").split())
+            if serial:
+                known_serial = serial
+            elif known_serial:
+                info["serial_number"] = known_serial
+                _LOGGER.debug(
+                    "Numero de serie absent de ce poll : %s reconduit", known_serial
+                )
+
             _async_maybe_fix_title(hass, entry, info)
 
             data = {
@@ -429,3 +447,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry
+) -> bool:
+    """Autorise la suppression d'un appareil rattache a cette entree.
+
+    Sans cette fonction, Home Assistant refuse TOUTE suppression avec « Config
+    entry does not support device removal » : c'est ce qui rendait indelebile
+    l'appareil fantome « Unknown Printer » indexe par l'adresse IP (defaut
+    corrige en v0.1.12, cf. identity.resolve_unique_id).
+
+    On autorise sans condition : un appareil de cette integration est toujours
+    recree au prochain demarrage s'il est encore joignable, donc une
+    suppression par erreur est sans consequence durable — alors qu'un refus
+    rend impossible le nettoyage des appareils obsoletes.
+    """
+    return True

@@ -17,7 +17,6 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -27,7 +26,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import DOMAIN
-from .identity import build_device_info
+from .identity import build_device_info, resolve_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +69,7 @@ class CanonCartridgeErrorBinarySensor(CoordinatorEntity, BinarySensorEntity):
         self._entry = entry
         data = coordinator.data or {}
         info = data.get("info", {}) or {}
-        unique_id = info.get("serial_number") or entry.data[CONF_HOST]
+        unique_id = resolve_unique_id(data, entry)
         self._attr_unique_id = f"{unique_id}_rui_cartridge_error"
         self._attr_translation_key = "cartridge_error"
 
@@ -149,7 +148,7 @@ class CanonConnectivityBinarySensor(CoordinatorEntity, BinarySensorEntity):
         self._entry = entry
         data = coordinator.data or {}
         info = data.get("info", {}) or {}
-        unique_id = info.get("serial_number") or entry.data[CONF_HOST]
+        unique_id = resolve_unique_id(data, entry)
         self._attr_unique_id = f"{unique_id}_connectivity"
 
     @property

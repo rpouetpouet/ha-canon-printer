@@ -18,7 +18,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.helpers.entity import DeviceInfo
 
-from .const import DOMAIN
+from .const import CONF_SERIAL_NUMBER, DOMAIN
 
 MANUFACTURERS: tuple[str, ...] = (
     "Canon",
@@ -82,6 +82,32 @@ def parse_manufacturer(description: Any, default: str = "Unknown") -> str:
     return default
 
 
+def resolve_unique_id(data: dict[str, Any] | None, entry: ConfigEntry) -> str:
+    """Identifiant STABLE de l'appareil et de ses entites.
+
+    Ordre de preference : numero de serie lu sur l'appareil, puis numero de
+    serie deja memorise dans l'entree, puis l'``entry_id`` de l'entree de
+    configuration.
+
+    **L'adresse IP n'est jamais une identite.** Defaut corrige ici (v0.1.12) :
+    ``unique_id = info.get("serial_number") or host``. Une imprimante en veille
+    profonde cesse de repondre au SNMP ; le numero de serie manquait alors au
+    poll, l'identifiant retombait sur l'IP et Home Assistant creait un SECOND
+    appareil, indexe par l'IP et nomme « Unknown Printer » (observe sur la
+    Canon MF660C : appareil fantome ``("canon_printer", "192.168.42.27")`` a
+    cote de l'appareil reel ``("canon_printer", "45V26267")``). Les ``unique_id``
+    d'entites suivaient la meme voie, avec un risque de doublons d'entites.
+    """
+    info = (data or {}).get("info") or {}
+    serial = _clean(info.get("serial_number"))
+    if serial:
+        return serial
+    stored = _clean(entry.data.get(CONF_SERIAL_NUMBER))
+    if stored:
+        return stored
+    return entry.entry_id
+
+
 def build_device_info(data: dict[str, Any] | None, entry: ConfigEntry) -> DeviceInfo:
     """Construit le ``DeviceInfo`` commun a toutes les plateformes.
 
@@ -93,7 +119,7 @@ def build_device_info(data: dict[str, Any] | None, entry: ConfigEntry) -> Device
     info = data.get("info", {}) or {}
     description = info.get("description")
     host = entry.data.get(CONF_HOST)
-    unique_id = info.get("serial_number") or host
+    unique_id = resolve_unique_id(data, entry)
 
     model = parse_model(description, info.get("name"), info.get("location"))
     device_info = DeviceInfo(

@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] - 2026-11-05
+
+### Fixed
+- **The device identity is never derived from the IP address any more.** The
+  device (and every entity `unique_id`) was keyed on
+  `info.get("serial_number") or host`. A Canon in deep sleep stops answering
+  SNMP, so the serial number was missing on that poll, the identifier fell back
+  to the IP address and Home Assistant registered a **second device** keyed on
+  the IP, named `Unknown Printer`, next to the real device keyed on its serial
+  number (observed: `("canon_printer", "192.168.42.27")` alongside
+  `("canon_printer", "45V26267")`). Entity `unique_id`s followed the same path,
+  so an entity-duplication risk came with it. `identity.resolve_unique_id()`
+  now resolves, in order: the serial number read from the device, the serial
+  number already stored in the entry, then the config entry id — and the
+  coordinator carries the last known serial over when a poll answers only
+  partially.
+
+### Added
+- **Device removal is supported** (`async_remove_config_entry_device`). Home
+  Assistant used to refuse every removal from this integration with
+  *"Config entry does not support device removal"*, which made the obsolete
+  `Unknown Printer` device impossible to delete, from the API as well as from
+  the UI.
+- `tests/test_identity.py` — 8 tests, including the regression test asserting
+  that the IP address never appears in an identifier.
+
 ## [0.1.9] - 2026-10-13
 
 ### Added
